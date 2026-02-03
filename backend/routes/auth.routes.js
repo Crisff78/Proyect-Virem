@@ -46,21 +46,25 @@ router.post('/register', async (req, res) => {
     especialidad,
   } = req.body;
 
+  const esRegistroMedico = String(especialidad || '').trim() !== '';
+
   // ✅ Validación básica (backend)
-  if (
-    !nombres ||
-    !apellidos ||
-    !fechanacimiento ||
-    !genero ||
-    !cedula ||
-    !telefono ||
-    !email ||
-    !password
-  ) {
-    return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
+  const camposObligatorios = [
+    nombres,
+    apellidos,
+    cedula,
+    telefono,
+    email,
+    password,
+  ];
+
+  if (!esRegistroMedico) {
+    camposObligatorios.push(fechanacimiento, genero);
   }
 
-  const esRegistroMedico = String(especialidad || '').trim() !== '';
+  if (camposObligatorios.some((campo) => !campo)) {
+    return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
+  }
 
   try {
     // ✅ API: verificar si el email ya existe en la tabla usuario
@@ -83,25 +87,25 @@ router.post('/register', async (req, res) => {
 
     let perfilId = null;
     let perfil = 'paciente';
+    let rolName = 'paciente';
 
     if (esRegistroMedico) {
       const insertMedico = await pool.query(
-        `INSERT INTO medico (nombres, apellidos, fechanacimiento, genero, cedula, telefono, especialidad, fecharegistro)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+        `INSERT INTO medico (nombres, apellidos, especialidad, cedula, telefono, fecharegistro)
+         VALUES ($1,$2,$3,$4,$5,NOW())
          RETURNING medicoid`,
         [
           String(nombres).trim(),
           String(apellidos).trim(),
-          fechaSQL,
-          String(genero).trim(),
+          String(especialidad).trim(),
           String(cedula).trim(),
           String(telefono).trim(),
-          String(especialidad).trim(),
         ]
       );
 
       perfilId = insertMedico.rows[0].medicoid;
       perfil = 'medico';
+      rolName = 'medico';
     } else {
       const insertPaciente = await pool.query(
         `INSERT INTO paciente (nombres, apellidos, fechanacimiento, genero, cedula, telefono, fecharegistro)
@@ -121,8 +125,18 @@ router.post('/register', async (req, res) => {
     }
 
     // ✅ Valores por defecto del usuario
-    const rolid = Number(process.env.DEFAULT_ROLID || 1);
+    let rolid = Number(process.env.DEFAULT_ROLID || 1);
     const activo = String(process.env.DEFAULT_ACTIVO || 'true') === 'true';
+
+    // ✅ Buscar rol según tipo de perfil (si existe en tabla rol)
+    const rolResult = await pool.query(
+      'SELECT rolid FROM rol WHERE LOWER(nombre) = $1 LIMIT 1',
+      [rolName]
+    );
+
+    if (rolResult.rows.length > 0) {
+      rolid = rolResult.rows[0].rolid;
+    }
 
     // ✅ API: Insertar en tabla usuario
     const insertUsuario = await pool.query(
