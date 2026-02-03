@@ -1,0 +1,37 @@
+{
+  "expo": {
+    "name": "Virem",
+    "slug": "virem",
+    "version": "1.0.0",
+    "description": "App de citas médicas con médicos, pacientes, chat, videollamadas y pagos",
+    "primaryColor": "#007bff",
+    "orientation": "portrait",
+    "icon": "./assets/imagenes/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/imagenes/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/imagenes/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "favicon": "./assets/imagenes/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}
