@@ -43,6 +43,7 @@ router.post('/register', async (req, res) => {
     telefono,
     email,
     password,
+    especialidad,
   } = req.body;
 
   // ✅ Validación básica (backend)
@@ -58,6 +59,8 @@ router.post('/register', async (req, res) => {
   ) {
     return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
   }
+
+  const esRegistroMedico = String(especialidad || '').trim() !== '';
 
   try {
     // ✅ API: verificar si el email ya existe en la tabla usuario
@@ -78,22 +81,44 @@ router.post('/register', async (req, res) => {
     // ✅ Transacción: si falla algo, no guarda nada
     await pool.query('BEGIN');
 
-    // ✅ API: Insertar en tabla paciente
-    const insertPaciente = await pool.query(
-      `INSERT INTO paciente (nombres, apellidos, fechanacimiento, genero, cedula, telefono, fecharegistro)
-       VALUES ($1,$2,$3,$4,$5,$6,NOW())
-       RETURNING pacienteid`,
-      [
-        String(nombres).trim(),
-        String(apellidos).trim(),
-        fechaSQL, // 👈 aquí va la fecha convertida
-        String(genero).trim(),
-        String(cedula).trim(),
-        String(telefono).trim(),
-      ]
-    );
+    let perfilId = null;
+    let perfil = 'paciente';
 
-    const pacienteid = insertPaciente.rows[0].pacienteid;
+    if (esRegistroMedico) {
+      const insertMedico = await pool.query(
+        `INSERT INTO medico (nombres, apellidos, fechanacimiento, genero, cedula, telefono, especialidad, fecharegistro)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+         RETURNING medicoid`,
+        [
+          String(nombres).trim(),
+          String(apellidos).trim(),
+          fechaSQL,
+          String(genero).trim(),
+          String(cedula).trim(),
+          String(telefono).trim(),
+          String(especialidad).trim(),
+        ]
+      );
+
+      perfilId = insertMedico.rows[0].medicoid;
+      perfil = 'medico';
+    } else {
+      const insertPaciente = await pool.query(
+        `INSERT INTO paciente (nombres, apellidos, fechanacimiento, genero, cedula, telefono, fecharegistro)
+         VALUES ($1,$2,$3,$4,$5,$6,NOW())
+         RETURNING pacienteid`,
+        [
+          String(nombres).trim(),
+          String(apellidos).trim(),
+          fechaSQL,
+          String(genero).trim(),
+          String(cedula).trim(),
+          String(telefono).trim(),
+        ]
+      );
+
+      perfilId = insertPaciente.rows[0].pacienteid;
+    }
 
     // ✅ Valores por defecto del usuario
     const rolid = Number(process.env.DEFAULT_ROLID || 1);
@@ -112,7 +137,8 @@ router.post('/register', async (req, res) => {
     return res.json({
       success: true,
       message: 'Registro completado.',
-      pacienteid,
+      perfil,
+      perfilid: perfilId,
       usuarioid: insertUsuario.rows[0].usuarioid,
     });
   } catch (err) {
