@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
 import * as SecureStore from 'expo-secure-store';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -39,6 +40,7 @@ const CATEGORY_ITEMS = [
 const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProps>();
   const [patientName, setPatientName] = useState(DEFAULT_PATIENT_NAME);
+
   const { width } = Dimensions.get('window');
   const isWideLayout = width >= 1024;
 
@@ -48,12 +50,14 @@ const HomeScreen: React.FC = () => {
     const loadProfile = async () => {
       try {
         const storedProfile = await SecureStore.getItemAsync('userProfile');
-        if (!storedProfile) {
-          return;
-        }
+        if (!storedProfile) return;
 
         const profile = JSON.parse(storedProfile) as Record<string, string>;
-        const fullName = [profile.nombres || profile.nombre || profile.firstName || profile.name, profile.apellidos || profile.lastName || profile.surname]
+
+        const fullName = [
+          profile.nombres || profile.nombre || profile.firstName || profile.name,
+          profile.apellidos || profile.lastName || profile.surname,
+        ]
           .filter(Boolean)
           .join(' ')
           .trim();
@@ -62,11 +66,12 @@ const HomeScreen: React.FC = () => {
           setPatientName(fullName);
         }
       } catch {
-        // Si falla la lectura, mantenemos el nombre por defecto.
+        // Mantiene el nombre por defecto si falla
       }
     };
 
     loadProfile();
+
     return () => {
       isMounted = false;
     };
@@ -81,7 +86,11 @@ const HomeScreen: React.FC = () => {
     try {
       await SecureStore.deleteItemAsync('authToken');
       await SecureStore.deleteItemAsync('userProfile');
-      navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Login' }],
+      });
     } catch {
       Alert.alert('Error', 'No se pudo cerrar la sesión. Intenta nuevamente.');
     }
@@ -91,6 +100,7 @@ const HomeScreen: React.FC = () => {
     <View style={styles.page}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={mainContainerStyle}>
+          {/* SIDEBAR */}
           <View style={[styles.sidebar, !isWideLayout && styles.sidebarCompact]}>
             <View style={styles.sidebarHeader}>
               <View style={styles.logoIcon}>
@@ -102,6 +112,7 @@ const HomeScreen: React.FC = () => {
               </View>
             </View>
 
+            {/* NAV ITEMS */}
             <View style={styles.navSection}>
               {NAV_ITEMS.map((item) => (
                 <View
@@ -113,30 +124,39 @@ const HomeScreen: React.FC = () => {
                     size={20}
                     color={item.active ? colors.primary : colors.blueGray}
                   />
-                  <Text style={[styles.navLabel, item.active && styles.navLabelActive]}>{item.label}</Text>
+                  <Text style={[styles.navLabel, item.active && styles.navLabelActive]}>
+                    {item.label}
+                  </Text>
                 </View>
               ))}
             </View>
 
+            {/* LOGOUT */}
             <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
               <MaterialIcons name="logout" size={18} color="#FFFFFF" />
               <Text style={styles.logoutText}>Cerrar Sesión</Text>
             </TouchableOpacity>
           </View>
 
+          {/* CONTENT */}
           <View style={styles.content}>
             <View style={styles.headerSection}>
               <Text style={styles.greeting}>¡Hola, {patientName}!</Text>
-              <Text style={styles.subtitle}>Bienvenido de nuevo a tu portal de salud VIREM.</Text>
+              <Text style={styles.subtitle}>
+                Bienvenido de nuevo a tu portal de salud VIREM.
+              </Text>
             </View>
 
+            {/* DASHBOARD */}
             <View style={styles.dashboardGrid}>
+              {/* MAIN COLUMN */}
               <View style={styles.mainColumn}>
+                {/* SEARCH */}
                 <View style={styles.searchCard}>
                   <View style={styles.searchInputRow}>
                     <MaterialIcons name="search" size={22} color={colors.blueGray} />
                     <TextInput
-                      placeholder="¿Qué especialista buscas hoy? Ej: Cardiólogo, Pediatra..."
+                      placeholder="¿Qué especialista buscas hoy?"
                       placeholderTextColor={colors.brandMuted}
                       style={styles.searchInput}
                     />
@@ -146,22 +166,27 @@ const HomeScreen: React.FC = () => {
                   </View>
                 </View>
 
+                {/* NEXT APPOINTMENT */}
                 <View style={styles.section}>
                   <Text style={styles.sectionTitle}>Próxima Cita</Text>
+
                   <View style={styles.appointmentCard}>
                     <View style={styles.appointmentContent}>
                       <View style={styles.reminderBadge}>
                         <Text style={styles.reminderText}>Recordatorio</Text>
                       </View>
+
                       <Text style={styles.doctorName}>Dr. Alejandro Ruiz</Text>
                       <Text style={styles.doctorSubtitle}>
-                        Especialista en Cardiología | 25 de Octubre, 10:30 AM
+                        Especialista en Cardiología | 25 Oct, 10:30 AM
                       </Text>
+
                       <TouchableOpacity style={styles.videoButton}>
                         <MaterialIcons name="videocam" size={18} color="#FFFFFF" />
                         <Text style={styles.videoButtonText}>Entrar a Videollamada</Text>
                       </TouchableOpacity>
                     </View>
+
                     {isWideLayout && (
                       <Image
                         source={{
@@ -172,73 +197,36 @@ const HomeScreen: React.FC = () => {
                     )}
                   </View>
                 </View>
-
-                <View style={styles.recordsRow}>
-                  <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.cardHeaderLeft}>
-                        <MaterialIcons name="medical-services" size={20} color={colors.primary} />
-                        <Text style={styles.cardTitle}>Recetas Digitales</Text>
-                      </View>
-                      <MaterialIcons name="arrow-forward" size={20} color={colors.brandMuted} />
-                    </View>
-                    <View style={styles.cardRow}>
-                      <View>
-                        <Text style={styles.cardRowTitle}>Amoxicilina 500mg</Text>
-                        <Text style={styles.cardRowSubtitle}>Dr. Alejandro Ruiz - 15 Oct</Text>
-                      </View>
-                      <MaterialIcons name="download" size={20} color={colors.primary} />
-                    </View>
-                  </View>
-
-                  <View style={styles.card}>
-                    <View style={styles.cardHeader}>
-                      <View style={styles.cardHeaderLeft}>
-                        <MaterialIcons name="biotech" size={20} color={colors.primary} />
-                        <Text style={styles.cardTitle}>Exámenes</Text>
-                      </View>
-                      <MaterialIcons name="arrow-forward" size={20} color={colors.brandMuted} />
-                    </View>
-                    <View style={styles.cardRow}>
-                      <View>
-                        <Text style={styles.cardRowTitle}>Análisis de Sangre</Text>
-                        <Text style={styles.cardRowSubtitle}>Laboratorio Central - 12 Oct</Text>
-                      </View>
-                      <MaterialIcons name="visibility" size={20} color={colors.primary} />
-                    </View>
-                  </View>
-                </View>
               </View>
 
+              {/* SIDEBAR COLUMN */}
               <View style={styles.sidebarColumn}>
                 <View style={styles.healthCard}>
                   <Text style={styles.healthTitle}>Tu Salud al Día</Text>
+
                   <View style={styles.healthRow}>
                     <View style={styles.healthIconWrap}>
                       <MaterialIcons name="favorite" size={20} color={colors.brandMuted} />
                     </View>
                     <View>
                       <Text style={styles.healthLabel}>Ritmo Cardíaco</Text>
-                      <Text style={styles.healthValue}>72 <Text style={styles.healthUnit}>bpm</Text></Text>
+                      <Text style={styles.healthValue}>
+                        72 <Text style={styles.healthUnit}>bpm</Text>
+                      </Text>
                     </View>
                   </View>
-                  <View style={styles.healthRow}>
-                    <View style={styles.healthIconWrap}>
-                      <MaterialIcons name="directions-walk" size={20} color={colors.brandMuted} />
-                    </View>
-                    <View>
-                      <Text style={styles.healthLabel}>Pasos Hoy</Text>
-                      <Text style={styles.healthValue}>8,432</Text>
-                    </View>
-                  </View>
+
                   <View style={styles.healthDivider} />
+
                   <Text style={styles.healthQuote}>
                     "Estás a solo 1,500 pasos de tu meta diaria. ¡Sigue así!"
                   </Text>
                 </View>
 
+                {/* CATEGORIES */}
                 <View style={styles.card}>
                   <Text style={styles.sectionSubtitle}>Categorías Populares</Text>
+
                   <View style={styles.categoryGrid}>
                     {CATEGORY_ITEMS.map((item) => (
                       <View key={item.label} style={styles.categoryItem}>
@@ -261,22 +249,36 @@ const HomeScreen: React.FC = () => {
   );
 };
 
+/* ✅ COLORS (blueGray arreglado aquí) */
 const colors = {
   primary: '#137fec',
   brandDark: '#0A1931',
   brandMuted: '#B3CFE5',
   brandBlue: '#4A7FA7',
   brandDeep: '#1A3D63',
+
+  blueGray: '#64748B', // ✅ FIX
+
   backgroundLight: '#F6FAFD',
   white: '#FFFFFF',
   slate100: '#E2E8F0',
 };
 
+/* ✅ STYLES */
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.backgroundLight },
   scrollContent: { padding: 24 },
-  mainLayout: { flexDirection: 'row', gap: 24, width: '100%', maxWidth: 1280, alignSelf: 'center' },
+
+  mainLayout: {
+    flexDirection: 'row',
+    gap: 24,
+    width: '100%',
+    maxWidth: 1280,
+    alignSelf: 'center',
+  },
+
   mainLayoutStacked: { flexDirection: 'column' },
+
   sidebar: {
     width: 260,
     backgroundColor: colors.white,
@@ -286,16 +288,51 @@ const styles = StyleSheet.create({
     borderColor: colors.slate100,
     justifyContent: 'space-between',
   },
+
   sidebarCompact: { width: '100%' },
-  sidebarHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 24 },
-  logoIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+
+  sidebarHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+
+  logoIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   logoTitle: { fontSize: 20, fontWeight: '800', color: colors.brandDark },
-  logoSubtitle: { fontSize: 10, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.brandBlue },
+
+  logoSubtitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: colors.brandBlue,
+  },
+
   navSection: { gap: 10 },
-  navItem: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 14 },
+
+  navItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    borderRadius: 14,
+  },
+
   navItemActive: { backgroundColor: 'rgba(19, 127, 236, 0.1)' },
+
   navLabel: { fontSize: 14, color: colors.brandBlue, fontWeight: '500' },
+
   navLabelActive: { color: colors.primary, fontWeight: '700' },
+
   logoutButton: {
     marginTop: 24,
     flexDirection: 'row',
@@ -306,32 +343,48 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 14,
   },
+
   logoutText: { color: colors.white, fontWeight: '700', fontSize: 14 },
+
   content: { flex: 1, gap: 20 },
+
   headerSection: { gap: 6 },
+
   greeting: { fontSize: 28, fontWeight: '800', color: colors.brandDark },
+
   subtitle: { fontSize: 16, color: colors.brandBlue, fontWeight: '500' },
+
   dashboardGrid: { flexDirection: 'row', gap: 24, flexWrap: 'wrap' },
+
   mainColumn: { flex: 1, gap: 20, minWidth: 320 },
+
   sidebarColumn: { width: 300, gap: 20 },
+
   searchCard: {
     backgroundColor: colors.white,
     borderRadius: 20,
     padding: 12,
     borderWidth: 1,
     borderColor: colors.slate100,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
+
   searchInputRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+
   searchInput: { flex: 1, fontSize: 14, color: colors.brandDark },
-  searchButton: { backgroundColor: colors.primary, paddingHorizontal: 18, paddingVertical: 10, borderRadius: 12 },
+
+  searchButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+
   searchButtonText: { color: colors.white, fontWeight: '700', fontSize: 12 },
+
   section: { gap: 12 },
+
   sectionTitle: { fontSize: 18, fontWeight: '700', color: colors.brandDark },
+
   appointmentCard: {
     backgroundColor: colors.white,
     borderRadius: 20,
@@ -341,17 +394,29 @@ const styles = StyleSheet.create({
     gap: 16,
     borderWidth: 1,
     borderColor: colors.slate100,
-    shadowColor: '#000',
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
   },
+
   appointmentContent: { flex: 1, gap: 12 },
-  reminderBadge: { alignSelf: 'flex-start', backgroundColor: '#DBEAFE', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  reminderText: { fontSize: 10, textTransform: 'uppercase', color: colors.primary, fontWeight: '700', letterSpacing: 1 },
+
+  reminderBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+
+  reminderText: {
+    fontSize: 10,
+    textTransform: 'uppercase',
+    color: colors.primary,
+    fontWeight: '700',
+  },
+
   doctorName: { fontSize: 18, fontWeight: '700', color: colors.brandDark },
+
   doctorSubtitle: { fontSize: 13, color: colors.brandBlue },
+
   videoButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -362,9 +427,46 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 14,
   },
+
   videoButtonText: { color: colors.white, fontWeight: '700', fontSize: 12 },
+
   appointmentImage: { width: 140, height: 120, borderRadius: 16 },
-  recordsRow: { flexDirection: 'row', gap: 16, flexWrap: 'wrap' },
+
+  healthCard: {
+    backgroundColor: colors.brandDeep,
+    borderRadius: 20,
+    padding: 18,
+    gap: 16,
+  },
+
+  healthTitle: { fontSize: 16, fontWeight: '700', color: colors.white },
+
+  healthRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+
+  healthIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  healthLabel: {
+    fontSize: 10,
+    textTransform: 'uppercase',
+    color: colors.brandMuted,
+    fontWeight: '700',
+  },
+
+  healthValue: { fontSize: 18, fontWeight: '700', color: colors.white },
+
+  healthUnit: { fontSize: 12, fontWeight: '400' },
+
+  healthDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
+
+  healthQuote: { fontSize: 12, fontStyle: 'italic', color: colors.brandMuted },
+
   card: {
     backgroundColor: colors.white,
     borderRadius: 18,
@@ -372,31 +474,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.slate100,
     gap: 14,
-    flex: 1,
-    minWidth: 220,
   },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  cardTitle: { fontSize: 14, fontWeight: '700', color: colors.brandDark },
-  cardRow: { backgroundColor: colors.backgroundLight, padding: 12, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  cardRowTitle: { fontSize: 13, fontWeight: '700', color: colors.brandDark },
-  cardRowSubtitle: { fontSize: 11, color: colors.brandBlue, marginTop: 4 },
-  healthCard: {
-    backgroundColor: colors.brandDeep,
-    borderRadius: 20,
-    padding: 18,
-    gap: 16,
-  },
-  healthTitle: { fontSize: 16, fontWeight: '700', color: colors.white },
-  healthRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  healthIconWrap: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.1)', alignItems: 'center', justifyContent: 'center' },
-  healthLabel: { fontSize: 10, textTransform: 'uppercase', color: colors.brandMuted, fontWeight: '700' },
-  healthValue: { fontSize: 18, fontWeight: '700', color: colors.white },
-  healthUnit: { fontSize: 12, fontWeight: '400' },
-  healthDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.1)' },
-  healthQuote: { fontSize: 12, fontStyle: 'italic', color: colors.brandMuted },
+
   sectionSubtitle: { fontSize: 14, fontWeight: '700', color: colors.brandDark },
+
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+
   categoryItem: {
     width: '47%',
     paddingVertical: 12,
@@ -405,6 +488,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+
   categoryLabel: { fontSize: 12, fontWeight: '700', color: colors.brandBlue },
 });
 
