@@ -2,12 +2,21 @@ const { Pool } = require('pg');
 require('dotenv').config();
 
 // ✅ DB: conexión PostgreSQL (API para base de datos)
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: Number(process.env.DB_PORT || 5432),
-});
+const pool = new Pool(
+  process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        ssl: String(process.env.DB_SSL || 'false') === 'true' ? { rejectUnauthorized: false } : false,
+      }
+    : {
+        user: process.env.DB_USER,
+        host: process.env.DB_HOST,
+        database: process.env.DB_NAME,
+        password: process.env.DB_PASSWORD,
+        port: Number(process.env.DB_PORT || 5432),
+      }
+);
 
 module.exports = pool;
+backend/index.js
+backend/index.js
