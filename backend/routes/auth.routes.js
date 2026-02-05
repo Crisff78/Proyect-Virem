@@ -1,39 +1,36 @@
-const express = require('express');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const pool = require('../db');
+const express = require("express");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const pool = require("../db");
 
 const router = express.Router();
 
 /**
- * ✅ Helper: convierte "DD/MM/YYYY" -> "YYYY-MM-DD"
- * - PostgreSQL trabaja mejor con YYYY-MM-DD
- * - Si la fecha no viene en DD/MM/YYYY, la devuelve igual.
+ * Convierte "DD/MM/YYYY" -> "YYYY-MM-DD"
+ * Si ya viene YYYY-MM-DD, lo deja igual.
  */
-function ddmmyyyyToYyyyMmDd(fecha) {
-  const parts = String(fecha || '').trim().split('/');
-  if (parts.length !== 3) return String(fecha || '').trim();
+function toSqlDate(fecha) {
+  const raw = String(fecha || "").trim();
+  if (!raw) return raw;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const parts = raw.split("/");
+  if (parts.length !== 3) return raw;
 
   const [dd, mm, yyyy] = parts;
+  if (!/^\d+$/.test(dd) || !/^\d+$/.test(mm) || !/^\d+$/.test(yyyy)) return raw;
 
-  if (!dd || !mm || !yyyy) return String(fecha || '').trim();
-
-  // Validación mínima (solo números)
-  if (!/^\d+$/.test(dd) || !/^\d+$/.test(mm) || !/^\d+$/.test(yyyy)) {
-    return String(fecha || '').trim();
-  }
-
-  // Formato final
-  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`;
+  return `${yyyy}-${mm.padStart(2, "0")}-${dd.padStart(2, "0")}`;
 }
 
 /**
  * ===============================
- * API: Registro (crea PACIENTE + USUARIO)
- * Endpoint: POST /api/auth/register
+ * POST /api/auth/register
+ * Registra PACIENTE + USUARIO
  * ===============================
  */
-router.post('/register', async (req, res) => {
+router.post("/register", async (req, res) => {
   const {
     nombres,
     apellidos,
@@ -43,10 +40,8 @@ router.post('/register', async (req, res) => {
     telefono,
     email,
     password,
-    especialidad,
   } = req.body;
 
-  // ✅ Validación básica (backend)
   if (
     !nombres ||
     !apellidos ||
@@ -57,111 +52,98 @@ router.post('/register', async (req, res) => {
     !email ||
     !password
   ) {
-    return res.status(400).json({ success: false, message: 'Faltan campos obligatorios.' });
+    return res.status(400).json({
+      success: false,
+      message:
+        "Faltan campos obligatorios (nombres, apellidos, fechanacimiento, genero, cedula, telefono, email, password).",
+    });
   }
 
-  const esRegistroMedico = String(especialidad || '').trim() !== '';
-
   try {
-    // ✅ API: verificar si el email ya existe en la tabla usuario
-    const existing = await pool.query('SELECT usuarioid FROM usuario WHERE email = $1', [
-      String(email).toLowerCase().trim(),
-    ]);
+    const normalizedEmail = String(email).toLowerCase().trim();
+
+    // Email único
+    const existing = await pool.query(
+      "SELECT usuarioid FROM usuario WHERE email = $1",
+      [normalizedEmail]
+    );
 
     if (existing.rows.length > 0) {
-      return res.status(409).json({ success: false, message: 'Ese correo ya está registrado.' });
+      return res.status(409).json({
+        success: false,
+        message: "Ese correo ya está registrado.",
+      });
     }
 
-    // ✅ API: Hash de contraseña (bcrypt)
-    const passwordhash = await bcrypt.hash(password, 10);
+    const passwordhash = await bcrypt.hash(String(password), 10);
+    const fechaSQL = toSqlDate(fechanacimiento);
 
-    // ✅ Convertir la fecha al formato compatible con PostgreSQL
-    const fechaSQL = ddmmyyyyToYyyyMmDd(fechanacimiento);
+    await pool.query("BEGIN");
 
-    // ✅ Transacción: si falla algo, no guarda nada
-    await pool.query('BEGIN');
+    // Insert paciente
+    const insertPaciente = await pool.query(
+      `INSERT INTO paciente (nombres, apellidos, fechanacimiento, genero, cedula, telefono, fecharegistro)
+       VALUES ($1,$2,$3,$4,$5,$6,NOW())
+       RETURNING pacienteid`,
+      [
+        String(nombres).trim(),
+        String(apellidos).trim(),
+        fechaSQL,
+        String(genero).trim(),
+        String(cedula).trim(),
+        String(telefono).trim(),
+      ]
+    );
 
-    let perfilId = null;
-    let perfil = 'paciente';
+    const pacienteid = insertPaciente.rows[0].pacienteid;
 
-    if (esRegistroMedico) {
-      const insertMedico = await pool.query(
-        `INSERT INTO medico (nombres, apellidos, especialidad, cedula, telefono, fecharegistro)
-         VALUES ($1,$2,$3,$4,$5,NOW())
-         RETURNING medicoid`,
-        [
-          String(nombres).trim(),
-          String(apellidos).trim(),
-          String(especialidad).trim(),
-          String(cedula).trim(),
-          String(telefono).trim(),
-        ]
-      );
-
-      perfilId = insertMedico.rows[0].medicoid;
-      perfil = 'medico';
-    } else {
-      const insertPaciente = await pool.query(
-        `INSERT INTO paciente (nombres, apellidos, fechanacimiento, genero, cedula, telefono, fecharegistro)
-         VALUES ($1,$2,$3,$4,$5,$6,NOW())
-         RETURNING pacienteid`,
-        [
-          String(nombres).trim(),
-          String(apellidos).trim(),
-          fechaSQL,
-          String(genero).trim(),
-          String(cedula).trim(),
-          String(telefono).trim(),
-        ]
-      );
-
-      perfilId = insertPaciente.rows[0].pacienteid;
-    }
-
-    // ✅ Valores por defecto del usuario
+    // Insert usuario
     const rolid = Number(process.env.DEFAULT_ROLID || 1);
-    const activo = String(process.env.DEFAULT_ACTIVO || 'true') === 'true';
+    const activo = String(process.env.DEFAULT_ACTIVO || "true") === "true";
 
-    // ✅ API: Insertar en tabla usuario
     const insertUsuario = await pool.query(
       `INSERT INTO usuario (rolid, email, passwordhash, fechacreacion, activo)
        VALUES ($1,$2,$3,NOW(),$4)
        RETURNING usuarioid`,
-      [rolid, String(email).toLowerCase().trim(), passwordhash, activo]
+      [rolid, normalizedEmail, passwordhash, activo]
     );
 
-    await pool.query('COMMIT');
+    await pool.query("COMMIT");
 
     return res.json({
       success: true,
-      message: 'Registro completado.',
-      perfil,
-      perfilid: perfilId,
+      message: "Paciente registrado correctamente.",
+      pacienteid,
       usuarioid: insertUsuario.rows[0].usuarioid,
     });
   } catch (err) {
-    await pool.query('ROLLBACK');
-    console.error('Error register:', err);
-    return res.status(500).json({ success: false, message: 'Error interno registrando.' });
+    await pool.query("ROLLBACK");
+    console.error("Error register paciente:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Error interno registrando paciente.",
+      error: err.message,
+    });
   }
 });
 
 /**
  * ===============================
- * API: Login (email + password)
- * Endpoint: POST /api/auth/login
+ * POST /api/auth/login
  * ===============================
  */
-router.post('/login', async (req, res) => {
+router.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  const normalizedEmail = String(email || '').toLowerCase().trim();
+  const normalizedEmail = String(email || "").toLowerCase().trim();
 
   if (!normalizedEmail || !password) {
-    return res.status(400).json({ success: false, message: 'Email y password son obligatorios.' });
+    return res.status(400).json({
+      success: false,
+      message: "Email y password son obligatorios.",
+    });
   }
 
   try {
-    // ✅ API: Buscar usuario por email
     const result = await pool.query(
       `SELECT usuarioid, rolid, email, passwordhash, activo
        FROM usuario
@@ -170,41 +152,39 @@ router.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
-      return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
+      return res.status(401).json({ success: false, message: "Credenciales inválidas." });
     }
 
     const user = result.rows[0];
 
     if (!user.activo) {
-      return res.status(403).json({ success: false, message: 'Usuario inactivo.' });
+      return res.status(403).json({ success: false, message: "Usuario inactivo." });
     }
 
-    // ✅ API: Comparar contraseña (bcrypt)
-    const ok = await bcrypt.compare(password, user.passwordhash);
+    const ok = await bcrypt.compare(String(password), user.passwordhash);
     if (!ok) {
-      return res.status(401).json({ success: false, message: 'Credenciales inválidas.' });
+      return res.status(401).json({ success: false, message: "Credenciales inválidas." });
     }
 
-    // ✅ API: Generar token JWT
     if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ success: false, message: 'Falta JWT_SECRET en el .env' });
+      return res.status(500).json({ success: false, message: "Falta JWT_SECRET en el .env" });
     }
 
     const token = jwt.sign(
       { usuarioid: user.usuarioid, rolid: user.rolid, email: user.email },
       process.env.JWT_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: "7d" }
     );
 
     return res.json({
       success: true,
-      message: 'Login exitoso.',
+      message: "Login exitoso.",
       token,
       user: { usuarioid: user.usuarioid, rolid: user.rolid, email: user.email },
     });
   } catch (err) {
-    console.error('Error login:', err);
-    return res.status(500).json({ success: false, message: 'Error interno en login.' });
+    console.error("Error login:", err);
+    return res.status(500).json({ success: false, message: "Error interno en login." });
   }
 });
 

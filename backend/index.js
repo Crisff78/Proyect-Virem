@@ -16,10 +16,6 @@ app.get("/", (req, res) => {
     endpoints: {
       health: "/health",
       auth: "/api/auth",
-      phone: "/api/phone",
-      users: "/api/users",
-      pacientes: "/api/pacientes",
-      medicos: "/api/medicos",
     },
   });
 });
@@ -29,19 +25,9 @@ app.get("/health", (req, res) => {
   res.json({ success: true, message: "Backend OK ✅" });
 });
 
-// Importar rutas
+// Rutas
 const authRoutes = require("./routes/auth.routes.js");
-const phoneRoutes = require("./routes/phone.routes.js");
-const userRoutes = require("./routes/users.routes.js");
-const pacientesRoutes = require("./routes/pacientes.routes.js");
-const medicosRoutes = require("./routes/medicos.routes.js");
-
-// Montar rutas
 app.use("/api/auth", authRoutes);
-app.use("/api/phone", phoneRoutes);
-app.use("/api/users", userRoutes);
-app.use("/api/pacientes", pacientesRoutes);
-app.use("/api/medicos", medicosRoutes);
 
 // Catch-all
 app.use((req, res) => {

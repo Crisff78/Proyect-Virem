@@ -1,8 +1,8 @@
-const { Pool } = require('pg');
-require('dotenv').config();
+const { Pool } = require("pg");
+require("dotenv").config();
 
 const hasDatabaseUrl = Boolean(process.env.DATABASE_URL);
-const useSsl = String(process.env.DB_SSL || '').toLowerCase() === 'true';
+const useSsl = String(process.env.DB_SSL || "").toLowerCase() === "true";
 
 const pool = new Pool(
   hasDatabaseUrl
