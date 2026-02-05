@@ -149,20 +149,29 @@ type ValidacionTelefonoBackendResult =
   | { ok: true; meta?: any }
   | { ok: false; reason: string };
 
+const postValidarTelefono = async (
+  endpoint: string,
+  countryCode: string,
+  phoneFormatted: string
+) => {
+  const digits = phoneFormatted.replace(/\D/g, '');
+  return fetch(apiUrl(endpoint), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ countryCode, phone: digits }),
+  });
+};
+
 const validarTelefonoBackend = async (
   countryCode: string,
   phoneFormatted: string
 ): Promise<ValidacionTelefonoBackendResult> => {
   try {
-    const digits = phoneFormatted.replace(/\D/g, '');
+    let res = await postValidarTelefono('/api/phone/validar-telefono', countryCode, phoneFormatted);
 
-    // ✅ FIX: tu backend monta phoneRoutes en /api/phone
-    // Por eso el endpoint correcto es /api/phone/validar-telefono
-    const res = await fetch(apiUrl('/api/phone/validar-telefono'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ countryCode, phone: digits }),
-    });
+    if (res.status === 404) {
+      res = await postValidarTelefono('/api/validar-telefono', countryCode, phoneFormatted);
+    }
 
     const data = await res.json().catch(() => null);
 
