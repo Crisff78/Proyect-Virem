@@ -68,4 +68,8 @@ Backend en Node.js + Express para autenticación y validación de teléfonos, y 
 
 ## Notas de seguridad
 - Usa `JWT_SECRET` fuerte.
+<<<<<<< HEAD
 - Ajusta límites y rate limiting según necesidad.
+=======
+- Ajusta límites y rate limiting según necesidad.
+>>>>>>> 8aaa8bffcfaf7143212bd1402ee433e1978192d3
