@@ -16,6 +16,7 @@ Backend en Node.js + Express para autenticación y validación de teléfonos, y 
 3. Completa las variables en `backend/.env`:
    - Usa `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`.
    - Alternativamente puedes usar `DATABASE_URL` (si prefieres una cadena única).
+   - Si tu proveedor requiere SSL, activa `DB_SSL=true`.
 4. Inicia el backend:
    ```bash
    cd backend
@@ -41,8 +42,7 @@ Backend en Node.js + Express para autenticación y validación de teléfonos, y 
 - `GET /health`
 
 ### Auth
-- `POST /api/auth/register`
-- `POST /api/auth/login`
+@@ -46,30 +47,26 @@ Backend en Node.js + Express para autenticación y validación de teléfonos, y
 
 ### Usuarios (requiere JWT)
 - `GET /api/users/me`
@@ -68,8 +68,4 @@ Backend en Node.js + Express para autenticación y validación de teléfonos, y 
 
 ## Notas de seguridad
 - Usa `JWT_SECRET` fuerte.
-<<<<<<< HEAD
 - Ajusta límites y rate limiting según necesidad.
-=======
-- Ajusta límites y rate limiting según necesidad.
->>>>>>> 8aaa8bffcfaf7143212bd1402ee433e1978192d3

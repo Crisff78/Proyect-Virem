@@ -86,17 +86,15 @@ router.post('/register', async (req, res) => {
 
     if (esRegistroMedico) {
       const insertMedico = await pool.query(
-        `INSERT INTO medico (nombres, apellidos, fechanacimiento, genero, cedula, telefono, especialidad, fecharegistro)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+        `INSERT INTO medico (nombres, apellidos, especialidad, cedula, telefono, fecharegistro)
+         VALUES ($1,$2,$3,$4,$5,NOW())
          RETURNING medicoid`,
         [
           String(nombres).trim(),
           String(apellidos).trim(),
-          fechaSQL,
-          String(genero).trim(),
+          String(especialidad).trim(),
           String(cedula).trim(),
           String(telefono).trim(),
-          String(especialidad).trim(),
         ]
       );
 
@@ -156,8 +154,9 @@ router.post('/register', async (req, res) => {
  */
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = String(email || '').toLowerCase().trim();
 
-  if (!email || !password) {
+  if (!normalizedEmail || !password) {
     return res.status(400).json({ success: false, message: 'Email y password son obligatorios.' });
   }
 
@@ -167,7 +166,7 @@ router.post('/login', async (req, res) => {
       `SELECT usuarioid, rolid, email, passwordhash, activo
        FROM usuario
        WHERE email = $1`,
-      [String(email).toLowerCase().trim()]
+      [normalizedEmail]
     );
 
     if (result.rows.length === 0) {

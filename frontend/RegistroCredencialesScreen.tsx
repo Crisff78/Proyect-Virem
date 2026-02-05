@@ -109,8 +109,12 @@ const RegistroCredencialesScreen: React.FC = () => {
       }
 
       // ✅ Registro exitoso
-      Alert.alert('¡Éxito!', 'Cuenta creada correctamente. Ahora inicia sesión.');
-      navigation.replace('Login');
+      Alert.alert('¡Éxito!', 'Cuenta creada correctamente. Ahora inicia sesión.', [
+        {
+          text: 'Ir a Login',
+          onPress: () => navigation.replace('Login'),
+        },
+      ]);
     } catch (error) {
       Alert.alert(
         'Error de Red',
