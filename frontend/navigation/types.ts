@@ -18,13 +18,20 @@ export type DatosPersonalesMedico = {
 export type RootStackParamList = {
   SeleccionPerfil: undefined;
   Login: undefined;
+
   RecuperarContrasena: undefined;
   VerificarIdentidad: { email: string };
   EstablecerNuevaContrasena: { email: string };
+
   RegistroPaciente: undefined;
   RegistroMedico: undefined;
+
   RegistroCredenciales: {
     datosPersonales: DatosPersonalesPaciente | DatosPersonalesMedico;
   };
+
   Home: undefined;
+
+  // ✅ NUEVA PANTALLA
+  DashboardPaciente: undefined;
 };

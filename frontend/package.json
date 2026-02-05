@@ -6,7 +6,9 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "start:web": "cross-env EXPO_PUBLIC_BACKEND_URL=http://localhost:3000 expo start --web -c",
+    "start:mobile": "cross-env EXPO_PUBLIC_BACKEND_URL=http://10.169.78.245:3000 expo start -c"
   },
   "dependencies": {
     "@babel/highlight": "^7.25.9",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "@types/react-native-vector-icons": "^6.4.18",
+    "cross-env": "^10.1.0",
     "typescript": "~5.9.2"
   },
   "private": true

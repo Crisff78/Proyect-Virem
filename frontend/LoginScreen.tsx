@@ -10,13 +10,15 @@ import {
   Image,
   Alert,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as SecureStore from 'expo-secure-store';
+
 import { RootStackParamList } from './navigation/types';
-import { apiUrl } from './config/backend';
+import { apiUrl, BACKEND_URL } from './config/backend';
 import { isValidEmail } from './utils/validation';
 
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -36,12 +38,32 @@ const COLORS = {
   iconColor: '#888888',
 };
 
+async function saveSession(token?: string, userProfile?: any) {
+  // ✅ Web: usar localStorage (SecureStore suele fallar en web)
+  if (Platform.OS === 'web') {
+    try {
+      if (token) localStorage.setItem('authToken', token);
+      if (userProfile) localStorage.setItem('userProfile', JSON.stringify(userProfile));
+    } catch (e) {
+      console.log('⚠️ localStorage falló:', e);
+    }
+    return;
+  }
+
+  // ✅ Mobile: SecureStore
+  try {
+    if (token) await SecureStore.setItemAsync('authToken', token);
+    if (userProfile) await SecureStore.setItemAsync('userProfile', JSON.stringify(userProfile));
+  } catch (e) {
+    console.log('⚠️ SecureStore falló:', e);
+  }
+}
+
 const LoginScreen: React.FC = () => {
   const navigation = useNavigation<LoginScreenNavigationProp>();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogin = async () => {
@@ -59,62 +81,67 @@ const LoginScreen: React.FC = () => {
 
     setIsLoading(true);
 
+    const url = apiUrl('/api/auth/login');
+
+    console.log('================ LOGIN ================');
+    console.log('Platform:', Platform.OS);
+    console.log('BACKEND_URL:', BACKEND_URL);
+    console.log('Login URL:', url);
+    console.log('Email:', emailTrim);
+
     try {
-      // ===============================
-      // ✅ API para LOGIN (Backend)
-      // Endpoint: POST /api/auth/login
-      // ===============================
-      const response = await fetch(apiUrl('/api/auth/login'), {
+      const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: emailTrim,
-          password: password,
-        }),
+        body: JSON.stringify({ email: emailTrim, password }),
       });
 
-      const data = await response.json().catch(() => null);
+      // ✅ leer texto primero evita crashes de json
+      const raw = await response.text();
+      console.log('HTTP:', response.status);
+      console.log('RAW:', raw);
+
+      let data: any = null;
+      try {
+        data = JSON.parse(raw);
+      } catch {
+        data = null;
+      }
 
       if (!response.ok || !data?.success) {
-        Alert.alert('Error', data?.message || 'Credenciales inválidas.');
+        Alert.alert('Error', data?.message || `Login falló (HTTP ${response.status}).`);
         return;
       }
 
-      const token = data?.token ?? data?.data?.token;
-      const userProfile = data?.user ?? data?.data?.user;
+      const token = data?.token ?? data?.data?.token ?? '';
+      const userProfile = data?.user ?? data?.data?.user ?? null;
 
-      try {
-        if (token) {
-          await SecureStore.setItemAsync('authToken', token);
-        }
+      // ✅ Guardar sesión sin bloquear navegación
+      await saveSession(token, userProfile);
 
-        if (userProfile) {
-          await SecureStore.setItemAsync('userProfile', JSON.stringify(userProfile));
-        }
-      } catch {
-        Alert.alert('Aviso', 'No se pudo guardar la sesión de forma segura.');
-      }
+      console.log('✅ Login OK -> DashboardPaciente');
 
-      Alert.alert('✅ Éxito', 'Iniciaste sesión correctamente.');
-      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      // ✅ Navega directo (sin depender de Alert)
+      navigation.reset({ index: 0, routes: [{ name: 'DashboardPaciente' as any }] });
 
-    } catch (err) {
+      // ✅ opcional: mostrar mensaje DESPUÉS (no bloquea navegación)
+      setTimeout(() => {
+        Alert.alert('✅ Éxito', 'Iniciaste sesión correctamente.');
+      }, 200);
+
+    } catch (err: any) {
+      console.log('❌ ERROR LOGIN:', err?.message || err);
       Alert.alert(
         'Error de red',
-        'No se pudo conectar al backend. Asegúrate de que esté encendido y configurado.'
+        `No se pudo conectar al backend.\n\nBackend actual: ${BACKEND_URL}`
       );
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
-    navigation.navigate('RecuperarContrasena');
-  };
-
-  const handleGoToRegister = () => {
-    navigation.navigate('SeleccionPerfil');
-  };
+  const handleForgotPassword = () => navigation.navigate('RecuperarContrasena');
+  const handleGoToRegister = () => navigation.navigate('SeleccionPerfil');
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -128,7 +155,9 @@ const LoginScreen: React.FC = () => {
           </View>
 
           <Text style={styles.title}>Accede a tu cuenta</Text>
-          <Text style={styles.subtitle}>Bienvenido de nuevo. Por favor, introduce tus credenciales.</Text>
+          <Text style={styles.subtitle}>
+            Bienvenido de nuevo. Por favor, introduce tus credenciales.
+          </Text>
 
           <View style={styles.form}>
             <Text style={styles.inputLabel}>Correo Electrónico</Text>
@@ -176,11 +205,7 @@ const LoginScreen: React.FC = () => {
               onPress={handleLogin}
               disabled={isLoading}
             >
-              {isLoading ? (
-                <ActivityIndicator color="white" />
-              ) : (
-                <Text style={styles.buttonText}>Iniciar Sesión</Text>
-              )}
+              {isLoading ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Iniciar Sesión</Text>}
             </TouchableOpacity>
           </View>
 
@@ -189,11 +214,17 @@ const LoginScreen: React.FC = () => {
               ¿No tienes cuenta? <Text style={styles.linkTextBold}>Regístrate</Text>
             </Text>
           </TouchableOpacity>
+
+          <Text style={{ marginTop: 14, fontSize: 12, color: '#4A7FA7' }}>
+            Backend: {BACKEND_URL}
+          </Text>
         </View>
       </View>
     </SafeAreaView>
   );
 };
+
+export default LoginScreen;
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.backgroundLight },
@@ -243,5 +274,3 @@ const styles = StyleSheet.create({
   registerText: { fontSize: 14, color: COLORS.textSecondary },
   linkTextBold: { color: COLORS.link, fontSize: 14, fontWeight: 'bold' },
 });
-
-export default LoginScreen;
