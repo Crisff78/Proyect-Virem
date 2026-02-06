@@ -18,11 +18,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MaterialIcons from 'react-native-vector-icons/MaterialIcons';
 import MaterialCommunityIcons from 'react-native-vector-icons/MaterialCommunityIcons';
 
-const ViremLogo = require('./assets/imagenes/descarga.png');
+const ViremLogo = require('../frontend/assets/imagenes/descarga.png');
 
 // Avatar default (local) -> crea una imagen en tu proyecto:
 // ./assets/imagenes/avatar-default.png
-const DefaultAvatar = require('./assets/imagenes/avatar-default.png');
+const DefaultAvatar = require('../frontend/assets/imagenes/avatar-default.jpg');
 
 const STORAGE_KEY = 'user'; // <-- aquí debe estar el usuario guardado al iniciar sesión
 
