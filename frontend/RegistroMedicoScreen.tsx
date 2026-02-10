@@ -944,7 +944,7 @@ const RegistroMedicoScreen: React.FC = () => {
 
             <TextInput
               style={styles.inputField}
-              placeholder="Busar..."
+              placeholder="Buscar..."
               value={espQuery}
               onChangeText={setEspQuery}
               autoFocus
