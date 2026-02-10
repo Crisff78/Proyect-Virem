@@ -13,6 +13,7 @@ import {
   View,
   ActivityIndicator,
   Image,
+  Platform,
 } from 'react-native';
 import { RootStackParamList } from './navigation/types';
 import { BACKEND_URL, apiUrl } from './config/backend';
@@ -22,8 +23,6 @@ type NavigationProps = NativeStackNavigationProp<RootStackParamList, 'RegistroCr
 type RegistroRouteProp = RouteProp<RootStackParamList, 'RegistroCredenciales'>;
 
 const { width } = Dimensions.get('window');
-
-// ✅ Logo (tu imagen)
 const ViremLogo = require('./assets/imagenes/descarga.png');
 
 const colors = {
@@ -35,6 +34,36 @@ const colors = {
   white: '#FFFFFF',
   slate50: '#f8fafc',
 };
+
+type DatosPaciente = {
+  nombres: string;
+  apellidos: string;
+  fechanacimiento: string;
+  genero: string;
+  cedula: string;
+  telefono: string;
+};
+
+function esDatosPaciente(x: any): x is DatosPaciente {
+  return (
+    x &&
+    typeof x.nombres === 'string' &&
+    typeof x.apellidos === 'string' &&
+    typeof x.fechanacimiento === 'string' &&
+    typeof x.genero === 'string' &&
+    typeof x.cedula === 'string' &&
+    typeof x.telefono === 'string'
+  );
+}
+
+function showAlert(title: string, message: string) {
+  if (Platform.OS === 'web') {
+    // @ts-ignore
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+}
 
 const RegistroCredencialesScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProps>();
@@ -48,52 +77,61 @@ const RegistroCredencialesScreen: React.FC = () => {
 
   const handleFinish = async () => {
     if (!route.params?.datosPersonales) {
-      Alert.alert('Error', 'Faltan datos personales para completar el registro.');
+      showAlert('Error', 'Faltan datos personales para completar el registro.');
       return;
     }
 
-    // ---------------------------
-    // VALIDACIONES FRONTEND
-    // ---------------------------
+    const dpAny = route.params.datosPersonales;
+    if (!esDatosPaciente(dpAny)) {
+      showAlert('Error', 'Este registro de credenciales está configurado para Paciente.');
+      return;
+    }
+
     if (!email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Complete todos los campos.');
+      showAlert('Error', 'Complete todos los campos.');
       return;
     }
 
-    if (!isValidEmail(email)) {
-      Alert.alert('Error', 'El correo no tiene un formato válido.');
+    const emailTrim = email.toLowerCase().trim();
+
+    if (!isValidEmail(emailTrim)) {
+      showAlert('Error', 'El correo no tiene un formato válido.');
       return;
     }
 
     if (!isStrongPassword(password)) {
-      Alert.alert(
+      showAlert(
         'Seguridad',
-        'La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un carácter especial.'
+        'La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un carácter especial.\n\nEj: Toribio123!'
       );
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden.');
+      showAlert('Error', 'Las contraseñas no coinciden.');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // ===============================
-      // ✅ API para REGISTRO DE USUARIO
-      // Endpoint (Backend): POST /api/auth/register
-      //
-      // Enviamos:
-      // - datos personales (vienen del RegistroPaciente)
-      // - email + password (este paso)
-      // ===============================
+      const telefonoDigits = String(dpAny.telefono || '').replace(/\D/g, '');
+      const cedulaClean = String(dpAny.cedula || '').trim();
+
       const bodyCompleto = {
-        ...route.params.datosPersonales,
-        email: email.toLowerCase().trim(),
-        password: password,
+        nombres: String(dpAny.nombres || '').trim(),
+        apellidos: String(dpAny.apellidos || '').trim(),
+        fechanacimiento: String(dpAny.fechanacimiento || '').trim(),
+        genero: String(dpAny.genero || '').trim(),
+        cedula: cedulaClean,
+        telefono: telefonoDigits,
+        email: emailTrim,
+        password: String(password),
       };
+
+      console.log('🌐 BACKEND_URL:', BACKEND_URL);
+      console.log('🌐 Register URL:', apiUrl('/api/auth/register'));
+      console.log('📦 Enviando body register:', bodyCompleto);
 
       const response = await fetch(apiUrl('/api/auth/register'), {
         method: 'POST',
@@ -104,20 +142,16 @@ const RegistroCredencialesScreen: React.FC = () => {
       const res = await response.json().catch(() => null);
 
       if (!response.ok || !res?.success) {
-        Alert.alert('Error', res?.message || `Fallo en el servidor (HTTP ${response.status}).`);
+        // ✅ aquí mostramos el error real del backend si viene
+        const detalle = res?.error ? `\n\nDetalle: ${res.error}` : '';
+        showAlert('Error', (res?.message || `Fallo (HTTP ${response.status}).`) + detalle);
         return;
       }
 
-      // ✅ Registro exitoso
-      Alert.alert('¡Éxito!', 'Cuenta creada correctamente. Ahora inicia sesión.');
+      showAlert('¡Éxito!', 'Cuenta creada correctamente. Ahora inicia sesión.');
       navigation.replace('Login');
     } catch (error) {
-      Alert.alert(
-        'Error de Red',
-        `No se pudo conectar al servidor.\n\nBackend actual: ${BACKEND_URL}\n\n` +
-          `Si estás en PC usa: http://localhost:3000\n` +
-          `Si estás en móvil usa: http://TU_IP:3000`
-      );
+      showAlert('Error de Red', `No se pudo conectar al servidor.\n\nBackend actual: ${BACKEND_URL}`);
     } finally {
       setIsLoading(false);
     }
@@ -146,7 +180,7 @@ const RegistroCredencialesScreen: React.FC = () => {
           <View style={styles.formCard}>
             <Text style={styles.cardTitle}>Finalizar Registro</Text>
             <Text style={styles.cardSubtitle}>
-              Hola {route.params.datosPersonales.nombres}, crea tu cuenta para acceder.
+              Hola {(route.params?.datosPersonales as any)?.nombres ?? ''}, crea tu cuenta para acceder.
             </Text>
 
             <View style={styles.inputGroup}>
@@ -170,7 +204,7 @@ const RegistroCredencialesScreen: React.FC = () => {
                 <MaterialIcons name="lock" size={20} color={colors.blueGray} style={{ marginRight: 10 }} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="••••••••"
+                  placeholder="Ej: Toribio123!"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={secureText}
@@ -187,7 +221,7 @@ const RegistroCredencialesScreen: React.FC = () => {
                 <MaterialIcons name="lock" size={20} color={colors.blueGray} style={{ marginRight: 10 }} />
                 <TextInput
                   style={styles.textInput}
-                  placeholder="••••••••"
+                  placeholder="Ej: Toribio123!"
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={secureText}
@@ -203,7 +237,6 @@ const RegistroCredencialesScreen: React.FC = () => {
               <Text style={styles.btnBackText}>Volver</Text>
             </TouchableOpacity>
 
-            {/* Mini info para no perderte */}
             <Text style={{ marginTop: 14, fontSize: 12, color: colors.blueGray, textAlign: 'center' }}>
               Backend: {BACKEND_URL}
             </Text>

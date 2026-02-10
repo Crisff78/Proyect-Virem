@@ -1,6 +1,6 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
 
 const app = express();
 
@@ -8,33 +8,39 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// ✅ Ruta raíz (para que no te salga "Ruta no existe: GET /")
-app.get('/', (req, res) => {
+// Ruta raíz
+app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: '🚀 Backend corriendo correctamente',
+    message: "🚀 Backend corriendo correctamente",
     endpoints: {
-      health: '/health',
-      auth: '/api/auth',
-      phone: '/api/phone',
+      health: "/health",
+      auth: "/api/auth",
+      validarTelefono: "/api/validar-telefono",
     },
   });
 });
 
-// ✅ Health check
-app.get('/health', (req, res) => {
-  res.json({ success: true, message: 'Backend OK ✅' });
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ success: true, message: "Backend OK ✅" });
 });
 
-// ✅ Importar rutas
-const authRoutes = require('./routes/auth.routes.js');
-const phoneRoutes = require('./routes/phone.routes.js');
+// ===============================
+// ✅ RUTAS AUTH
+// ===============================
+const authRoutes = require("./routes/auth.routes.js");
+app.use("/api/auth", authRoutes);
 
-// ✅ Montar rutas
-app.use('/api/auth', authRoutes);
-app.use('/api/phone', phoneRoutes);
+// ===============================
+// ✅ RUTA VALIDAR TELÉFONO
+// Archivo: routes/phone.routes.js
+// Endpoint: POST /api/validar-telefono
+// ===============================
+const phoneRoutes = require("./routes/phone.routes.js");
+app.use("/api", phoneRoutes);
 
-// ✅ Catch-all (si te equivocas de endpoint)
+// Catch-all
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
@@ -43,6 +49,6 @@ app.use((req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 Backend corriendo en http://localhost:${PORT}`);
 });
