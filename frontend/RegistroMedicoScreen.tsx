@@ -540,6 +540,10 @@ const RegistroMedicoScreen: React.FC = () => {
   }, [espQuery]);
 
   const validarQueSeaPersona = async (uri: string) => {
+    // ✅ FIX: En WEB expo-face-detector no funciona confiable (devuelve 0 o falla),
+    // así que aceptamos la imagen para mostrarla como foto de perfil.
+    if (Platform.OS === "web") return true;
+
     try {
       const result = await FaceDetector.detectFacesAsync(uri, {
         mode: FaceDetector.FaceDetectorMode.fast,
@@ -572,19 +576,23 @@ const RegistroMedicoScreen: React.FC = () => {
       if (result.canceled) return;
       const uri = result.assets[0].uri;
 
-      setIsLoading(true);
-      const ok = await validarQueSeaPersona(uri);
-      setIsLoading(false);
-
-      if (!ok) {
-        setFotoUri("");
-        setFotoError(true);
-        Alert.alert("Foto no válida", "Selecciona una foto donde se vea claramente el rostro de una persona.");
-        return;
-      }
-
+      // ✅ FIX: Mostrar la imagen inmediatamente como preview (foto de perfil)
       setFotoUri(uri);
       setFotoError(false);
+
+      // ✅ Validar rostro solo en mobile (iOS/Android)
+      if (Platform.OS !== "web") {
+        setIsLoading(true);
+        const ok = await validarQueSeaPersona(uri);
+        setIsLoading(false);
+
+        if (!ok) {
+          setFotoUri("");
+          setFotoError(true);
+          Alert.alert("Foto no válida", "Selecciona una foto donde se vea claramente el rostro de una persona.");
+          return;
+        }
+      }
     } catch {
       setIsLoading(false);
       Alert.alert("Error", "No se pudo abrir el selector de imágenes.");
@@ -936,7 +944,7 @@ const RegistroMedicoScreen: React.FC = () => {
 
             <TextInput
               style={styles.inputField}
-              placeholder="Buscar..."
+              placeholder="Busar..."
               value={espQuery}
               onChangeText={setEspQuery}
               autoFocus
