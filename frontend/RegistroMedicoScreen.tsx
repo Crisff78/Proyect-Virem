@@ -25,7 +25,10 @@ import { RootStackParamList } from "./navigation/types";
 import { apiUrl } from "./config/backend";
 
 // Tipado navegación
-type NavigationProps = NativeStackNavigationProp<RootStackParamList, "RegistroMedico">;
+type NavigationProps = NativeStackNavigationProp<
+  RootStackParamList,
+  "RegistroMedico"
+>;
 
 interface CountryCodeType {
   code: string;
@@ -179,11 +182,13 @@ const formatCedulaRD = (text: string) => {
 };
 
 // =========================================
-// API para validar teléfono (USANDO TU apiUrl)
+// API para validar teléfono
 // =========================================
+type ValidacionTelefonoBackendOk = { ok: true; meta?: any };
+type ValidacionTelefonoBackendFail = { ok: false; reason: string };
 type ValidacionTelefonoBackendResult =
-  | { ok: true; meta?: any }
-  | { ok: false; reason: string };
+  | ValidacionTelefonoBackendOk
+  | ValidacionTelefonoBackendFail;
 
 const validarTelefonoBackend = async (
   countryCode: string,
@@ -202,20 +207,69 @@ const validarTelefonoBackend = async (
 
     if (!res.ok || !data?.success) {
       return {
-        ok: false,
+        ok: false as const,
         reason: data?.message || `No se pudo validar (HTTP ${res.status}).`,
       };
     }
 
     if (!data.valid) {
-      return { ok: false, reason: "El número no es válido según Veriphone." };
+      return { ok: false as const, reason: "El número no es válido según Veriphone." };
     }
 
-    return { ok: true, meta: data };
+    return { ok: true as const, meta: data };
   } catch {
     return {
-      ok: false,
+      ok: false as const,
       reason: "Error de red: no se pudo conectar con el backend.",
+    };
+  }
+};
+
+// =========================================
+// ✅ API Exequátur (SNS) - TU ENDPOINT LOCAL
+// Endpoint: POST /api/validar-exequatur
+// =========================================
+type ValidacionExequaturOk = { ok: true; meta?: any };
+type ValidacionExequaturFail = { ok: false; reason: string };
+type ValidacionExequaturResult = ValidacionExequaturOk | ValidacionExequaturFail;
+
+const validarExequaturBackend = async (args: {
+  cedula: string;
+  nombres: string;
+  apellidos: string;
+}): Promise<ValidacionExequaturResult> => {
+  try {
+    const res = await fetch(apiUrl("/api/validar-exequatur"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cedula: args.cedula, // puede ir con guiones; el backend lo limpia
+        nombres: args.nombres,
+        apellidos: args.apellidos,
+      }),
+    });
+
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok || !data?.success) {
+      return {
+        ok: false as const,
+        reason: data?.message || `No se pudo validar Exequátur (HTTP ${res.status}).`,
+      };
+    }
+
+    if (!data.exists) {
+      return {
+        ok: false as const,
+        reason: "Este médico no aparece en el Exequátur del SNS. Verifica cédula y nombres.",
+      };
+    }
+
+    return { ok: true as const, meta: data };
+  } catch {
+    return {
+      ok: false as const,
+      reason: "Error de red: no se pudo consultar el Exequátur.",
     };
   }
 };
@@ -494,7 +548,9 @@ const RegistroMedicoScreen: React.FC = () => {
   const [gender, setGender] = useState("");
   const [cedula, setCedula] = useState("");
   const [phone, setPhone] = useState("");
-  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCodeType>(countryCodes[0]);
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCodeType>(
+    countryCodes[0]
+  );
 
   // Médico
   const [especialidad, setEspecialidad] = useState("");
@@ -517,6 +573,9 @@ const RegistroMedicoScreen: React.FC = () => {
   const [telefonoError, setTelefonoError] = useState<string>("");
   const [especialidadError, setEspecialidadError] = useState(false);
 
+  // ✅ NUEVO: error exequátur
+  const [exequaturError, setExequaturError] = useState<string>("");
+
   const isFormComplete =
     names.trim() !== "" &&
     lastNames.trim() !== "" &&
@@ -527,9 +586,16 @@ const RegistroMedicoScreen: React.FC = () => {
     especialidad.trim() !== "" &&
     !!fotoUri;
 
-  const completedFields = [names, lastNames, birthDate, gender, cedula, phone, especialidad, fotoUri].filter((x) =>
-    typeof x === "string" ? x.trim() !== "" : !!x
-  ).length;
+  const completedFields = [
+    names,
+    lastNames,
+    birthDate,
+    gender,
+    cedula,
+    phone,
+    especialidad,
+    fotoUri,
+  ].filter((x) => (typeof x === "string" ? x.trim() !== "" : !!x)).length;
 
   const progressPercent = Math.round((completedFields / 8) * 100);
 
@@ -540,8 +606,7 @@ const RegistroMedicoScreen: React.FC = () => {
   }, [espQuery]);
 
   const validarQueSeaPersona = async (uri: string) => {
-    // ✅ FIX: En WEB expo-face-detector no funciona confiable (devuelve 0 o falla),
-    // así que aceptamos la imagen para mostrarla como foto de perfil.
+    // En WEB expo-face-detector no funciona confiable
     if (Platform.OS === "web") return true;
 
     try {
@@ -576,11 +641,9 @@ const RegistroMedicoScreen: React.FC = () => {
       if (result.canceled) return;
       const uri = result.assets[0].uri;
 
-      // ✅ FIX: Mostrar la imagen inmediatamente como preview (foto de perfil)
       setFotoUri(uri);
       setFotoError(false);
 
-      // ✅ Validar rostro solo en mobile (iOS/Android)
       if (Platform.OS !== "web") {
         setIsLoading(true);
         const ok = await validarQueSeaPersona(uri);
@@ -607,6 +670,7 @@ const RegistroMedicoScreen: React.FC = () => {
     setTelefonoError("");
     setEspecialidadError(false);
     setFotoError(false);
+    setExequaturError("");
 
     if (!fotoUri) {
       setFotoError(true);
@@ -631,6 +695,7 @@ const RegistroMedicoScreen: React.FC = () => {
       return;
     }
 
+    // Validación cédula RD (solo si RD)
     if (selectedCountryCode.name === "República Dominicana") {
       setIsLoading(true);
       await new Promise((r) => setTimeout(r, 250));
@@ -644,13 +709,29 @@ const RegistroMedicoScreen: React.FC = () => {
       }
     }
 
+    // ✅ Validación teléfono
     setIsLoading(true);
     const tel = await validarTelefonoBackend(selectedCountryCode.code, phone);
     setIsLoading(false);
 
-    if (!tel.ok) {
+    if (tel.ok === false) {
       setTelefonoError(tel.reason);
       Alert.alert("Teléfono inválido", tel.reason);
+      return;
+    }
+
+    // ✅ NUEVO: Validación Exequátur (SNS)
+    setIsLoading(true);
+    const exq = await validarExequaturBackend({
+      cedula,
+      nombres: names,
+      apellidos: lastNames,
+    });
+    setIsLoading(false);
+
+    if (exq.ok === false) {
+      setExequaturError(exq.reason);
+      Alert.alert("Médico no verificado", exq.reason);
       return;
     }
 
@@ -716,7 +797,7 @@ const RegistroMedicoScreen: React.FC = () => {
               </View>
 
               <TouchableOpacity
-                style={[styles.photoBtn, (showErrors && !fotoUri) && styles.inputError]}
+                style={[styles.photoBtn, showErrors && !fotoUri && styles.inputError]}
                 onPress={pickImage}
                 activeOpacity={0.85}
               >
@@ -735,7 +816,7 @@ const RegistroMedicoScreen: React.FC = () => {
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Nombres</Text>
                   <TextInput
-                    style={[styles.inputField, (showErrors && !names) && styles.inputError]}
+                    style={[styles.inputField, showErrors && !names && styles.inputError]}
                     placeholder="Ej. Juan Alberto"
                     value={names}
                     onChangeText={(t) => setNames(filterOnlyLetters(t))}
@@ -745,7 +826,7 @@ const RegistroMedicoScreen: React.FC = () => {
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Apellidos</Text>
                   <TextInput
-                    style={[styles.inputField, (showErrors && !lastNames) && styles.inputError]}
+                    style={[styles.inputField, showErrors && !lastNames && styles.inputError]}
                     placeholder="Ej. Pérez Gomez"
                     value={lastNames}
                     onChangeText={(t) => setLastNames(filterOnlyLetters(t))}
@@ -757,23 +838,28 @@ const RegistroMedicoScreen: React.FC = () => {
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Cédula (Identificación)</Text>
                   <TextInput
-                    style={[styles.inputField, (((showErrors && !cedula) || cedulaError) && styles.inputError) as any]}
+                    style={[
+                      styles.inputField,
+                      ((showErrors && !cedula) || cedulaError || !!exequaturError) && styles.inputError,
+                    ]}
                     placeholder="XXX-XXXXXXX-X"
                     keyboardType="numeric"
                     value={cedula}
                     onChangeText={(t) => {
                       setCedula(formatCedulaRD(t));
                       setCedulaError(false);
+                      setExequaturError("");
                     }}
                     maxLength={13}
                   />
                   {cedulaError && <Text style={styles.errorText}>Cédula no válida</Text>}
+                  {!!exequaturError && <Text style={styles.errorText}>{exequaturError}</Text>}
                 </View>
 
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Género</Text>
                   <TouchableOpacity
-                    style={[styles.selectInput, (showErrors && !gender) && styles.inputError]}
+                    style={[styles.selectInput, showErrors && !gender && styles.inputError]}
                     onPress={() => setShowGenderModal(true)}
                     activeOpacity={0.85}
                   >
@@ -787,7 +873,7 @@ const RegistroMedicoScreen: React.FC = () => {
               <View style={styles.formRow}>
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Teléfono</Text>
-                  <View style={[styles.phoneInputGroup, (showErrors && !phone) && styles.inputError]}>
+                  <View style={[styles.phoneInputGroup, showErrors && !phone && styles.inputError]}>
                     <TouchableOpacity style={styles.prefixButton} onPress={() => setShowPrefixModal(true)}>
                       <Text style={styles.prefixText}>{selectedCountryCode.code}</Text>
                     </TouchableOpacity>
@@ -812,7 +898,7 @@ const RegistroMedicoScreen: React.FC = () => {
                   <TextInput
                     style={[
                       styles.inputField,
-                      (((showErrors && !birthDate) || fechaError || fechaMayor18Error) && styles.inputError) as any,
+                      ((showErrors && !birthDate) || fechaError || fechaMayor18Error) && styles.inputError,
                     ]}
                     placeholder="DD/MM/YYYY"
                     value={birthDate}
@@ -835,7 +921,7 @@ const RegistroMedicoScreen: React.FC = () => {
                   <TouchableOpacity
                     style={[
                       styles.selectInput,
-                      (((showErrors && !especialidad) || especialidadError) && styles.inputError) as any,
+                      ((showErrors && !especialidad) || especialidadError) && styles.inputError,
                     ]}
                     onPress={() => setShowEspModal(true)}
                     activeOpacity={0.85}
