@@ -229,21 +229,20 @@ const validarTelefonoBackend = async (
 // =========================================
 // ✅ API EXEQUÁTUR SOLO POR NOMBRE COMPLETO
 // Endpoint: POST /api/validar-exequatur
-// Body: { cedula: "...", nombreCompleto: "..." }
+// Body: { nombreCompleto: "..." }
 // =========================================
 type ValidacionExequaturOk = { ok: true; meta?: any };
 type ValidacionExequaturFail = { ok: false; reason: string };
 type ValidacionExequaturResult = ValidacionExequaturOk | ValidacionExequaturFail;
 
 const validarExequaturPorNombre = async (
-  cedula: string,
   nombreCompleto: string
 ): Promise<ValidacionExequaturResult> => {
   try {
     const res = await fetch(apiUrl("/api/validar-exequatur"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cedula, nombreCompleto }),
+      body: JSON.stringify({ nombreCompleto }),
     });
 
     const data = await res.json().catch(() => null);
@@ -711,7 +710,7 @@ const RegistroMedicoScreen: React.FC = () => {
     }
 
     setIsLoading(true);
-    const exq = await validarExequaturPorNombre(cedula, nombreCompletoTrim);
+    const exq = await validarExequaturPorNombre(nombreCompletoTrim);
     setIsLoading(false);
 
     if (exq.ok === false) {
