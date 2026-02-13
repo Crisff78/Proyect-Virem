@@ -257,10 +257,14 @@ const validarExequaturPorNombre = async (
     }
 
     if (!data.exists) {
+      const suggestedName = String(data?.match?.candidateName || "").trim();
+      const reason = suggestedName
+        ? `No se encontró coincidencia exacta en el Exequátur del SNS. Nombre similar encontrado: ${suggestedName}. Verifica el nombre completo tal como aparece en el SNS.`
+        : "Este médico no aparece en el Exequátur del SNS. Verifica el nombre completo tal como aparece en el SNS.";
+
       return {
         ok: false as const,
-        reason:
-          "Este mÃ©dico no aparece en el ExequÃ¡tur del SNS. Verifica el nombre completo tal como aparece en el SNS.",
+        reason,
       };
     }
 
