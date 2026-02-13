@@ -3,27 +3,170 @@ const { chromium } = require("playwright");
 const SNS_URL =
   "https://sns.gob.do/herramientas-de-consulta/consulta-de-exequatur/";
 
+const DEBUG_EXEQUATUR = String(process.env.EXEQUATUR_DEBUG || "").toLowerCase() === "true";
+
+const PARTICULAS = new Set(["de", "del", "la", "las", "los", "y", "da", "do", "dos", "das"]);
+
+const logDebug = (...args) => {
+  if (DEBUG_EXEQUATUR) {
+    console.log("[EXEQUATUR DEBUG]", ...args);
+  }
+};
+
+const normalizeText = (value) =>
+  String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.,-]/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const tokenize = (value) =>
+  normalizeText(value)
+    .split(" ")
+    .filter(Boolean);
+
+const tokenizeWithoutParticles = (value) => tokenize(value).filter((t) => !PARTICULAS.has(t));
+
+const tokenOverlapRatio = (aTokens, bTokens) => {
+  const a = new Set(aTokens);
+  const b = new Set(bTokens);
+  if (!a.size || !b.size) return 0;
+
+  let intersection = 0;
+  for (const token of a) {
+    if (b.has(token)) intersection += 1;
+  }
+
+  const denominator = Math.max(a.size, b.size);
+  return denominator ? intersection / denominator : 0;
+};
+
+const levenshteinDistance = (a, b) => {
+  const s = String(a || "");
+  const t = String(b || "");
+
+  if (s === t) return 0;
+  if (!s.length) return t.length;
+  if (!t.length) return s.length;
+
+  const matrix = Array.from({ length: s.length + 1 }, () => Array(t.length + 1).fill(0));
+
+  for (let i = 0; i <= s.length; i += 1) matrix[i][0] = i;
+  for (let j = 0; j <= t.length; j += 1) matrix[0][j] = j;
+
+  for (let i = 1; i <= s.length; i += 1) {
+    for (let j = 1; j <= t.length; j += 1) {
+      const cost = s[i - 1] === t[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return matrix[s.length][t.length];
+};
+
+const similarityRatio = (a, b) => {
+  const s = normalizeText(a);
+  const t = normalizeText(b);
+  const maxLen = Math.max(s.length, t.length);
+  if (!maxLen) return 0;
+  const distance = levenshteinDistance(s, t);
+  return 1 - distance / maxLen;
+};
+
+const buildDoctorFromRow = (cells) => {
+  const clean = (idx) => String(cells[idx] || "").trim();
+
+  return {
+    nombre: clean(0),
+    profesion: clean(1),
+    universidad: clean(2),
+    no_registro: clean(3),
+    fecha_registro: clean(4),
+    folio: clean(5),
+    libro: clean(6),
+    no_decreto: clean(7),
+  };
+};
+
+const scoreCandidate = ({ targetName, candidateName, cedulaDigits, candidateRaw }) => {
+  const targetNorm = normalizeText(targetName);
+  const candidateNorm = normalizeText(candidateName);
+
+  const targetTokens = tokenizeWithoutParticles(targetNorm);
+  const candidateTokens = tokenizeWithoutParticles(candidateNorm);
+
+  const scoreA = tokenOverlapRatio(targetTokens, candidateTokens);
+  const scoreB =
+    targetNorm && candidateNorm && (targetNorm.includes(candidateNorm) || candidateNorm.includes(targetNorm))
+      ? 1
+      : 0;
+  const scoreC = similarityRatio(targetNorm, candidateNorm);
+
+  let scoreCedula = 0;
+  if (cedulaDigits) {
+    const fromAllText = String(candidateRaw || "").replace(/\D/g, "");
+    if (fromAllText.includes(cedulaDigits)) {
+      scoreCedula = 1;
+    }
+  }
+
+  const total = 0.5 * scoreA + 0.2 * scoreB + 0.25 * scoreC + 0.05 * scoreCedula;
+
+  return {
+    score: Number(total.toFixed(4)),
+    detail: {
+      scoreA: Number(scoreA.toFixed(4)),
+      scoreB,
+      scoreC: Number(scoreC.toFixed(4)),
+      scoreCedula,
+    },
+    method: "token_overlap+includes+similarity",
+  };
+};
+
+const waitForTablePopulation = async (page) => {
+  const tableSelector = "table tbody tr";
+
+  for (let i = 0; i < 10; i += 1) {
+    const count = await page.locator(tableSelector).count().catch(() => 0);
+    if (count > 0) return count;
+    await page.waitForTimeout(500);
+  }
+
+  return 0;
+};
+
+const extractRows = async (page) => {
+  const rows = await page.$$eval("table tbody tr", (trs) =>
+    trs.map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => (td.textContent || "").trim()))
+  );
+  return rows.filter((r) => r.some((c) => c));
+};
+
 /**
  * Consulta Exequátur Médico en SNS
  * Devuelve:
- * - ok:true exists:true doctor
+ * - ok:true exists:true doctor match
  * - ok:true exists:false
  * - ok:false reason
  */
-async function consultarExequaturSNS({ cedula, nombres, apellidos }) {
+async function consultarExequaturSNS({ cedula, nombreCompleto }) {
   const cedulaDigits = String(cedula || "").replace(/\D/g, "");
-  const nom = String(nombres || "").trim();
-  const ape = String(apellidos || "").trim();
+  const fullName = String(nombreCompleto || "").trim();
 
-  if (!cedulaDigits && !nom) {
+  if (!fullName) {
     return {
       ok: false,
-      reason: "Debes enviar cédula o nombres para validar Exequátur.",
+      reason: "Verifica el nombre completo tal como aparece en el SNS.",
     };
   }
-
-  // Query: si hay cédula, usarla; si no, nombre+apellido
-  const query = cedulaDigits || `${nom} ${ape}`.trim();
 
   let browser;
 
@@ -36,11 +179,8 @@ async function consultarExequaturSNS({ cedula, nombres, apellidos }) {
       timeout: 45000,
     });
 
-    // Espera un poquito a que scripts armen la UI
-    await page.waitForTimeout(1500);
+    await page.waitForTimeout(1800);
 
-    // 1) Encuentra un input que parezca de búsqueda
-    // (muchas páginas usan placeholder, name o type search)
     const inputCandidates = [
       'input[type="search"]',
       'input[placeholder*="Buscar" i]',
@@ -55,26 +195,23 @@ async function consultarExequaturSNS({ cedula, nombres, apellidos }) {
     let input = null;
     for (const sel of inputCandidates) {
       const loc = page.locator(sel).first();
-      if ((await loc.count()) > 0) {
-        // que sea visible
-        if (await loc.isVisible().catch(() => false)) {
-          input = loc;
-          break;
-        }
+      if ((await loc.count()) > 0 && (await loc.isVisible().catch(() => false))) {
+        input = loc;
+        break;
       }
     }
 
     if (!input) {
-      // DEBUG: guarda html para revisar
-      const html = await page.content();
-      console.log("SNS DEBUG: no encontré input. HTML length:", html.length);
+      logDebug("No se encontró input de búsqueda");
       return { ok: false, reason: "No se encontró el campo de búsqueda en SNS." };
     }
+
+    const query = fullName;
+    logDebug("Query SNS:", query);
 
     await input.click().catch(() => {});
     await input.fill(query);
 
-    // 2) Intentar click en botón Buscar si existe
     const buttonCandidates = [
       'button:has-text("Buscar")',
       'button:has-text("CONSULTAR")',
@@ -92,62 +229,86 @@ async function consultarExequaturSNS({ cedula, nombres, apellidos }) {
       }
     }
 
-    // Si no hay botón, Enter
     if (!clicked) {
       await input.press("Enter").catch(() => {});
     }
 
-    // 3) Espera resultados (más tiempo porque a veces tarda)
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(1800);
 
-    // 4) Detectar si hay tabla/filas o algún “no results”
-    const rowCount = await page.locator("table tbody tr").count().catch(() => 0);
+    const rowCount = await waitForTablePopulation(page);
+    const countInfo = await page
+      .locator(".dataTables_info, #table_info, .dt-info")
+      .first()
+      .textContent()
+      .catch(() => "");
 
-    // Si hay tabla y filas: parsear
+    logDebug("Cantidad de filas detectadas:", rowCount);
+    logDebug("Texto de cantidad de registros:", String(countInfo || "").trim());
+
     if (rowCount > 0) {
-      const cols = await page
-        .locator("table tbody tr")
-        .first()
-        .locator("td")
-        .allTextContents();
+      const rows = await extractRows(page);
+      const candidates = rows.map((cells) => {
+        const doctor = buildDoctorFromRow(cells);
+        const score = scoreCandidate({
+          targetName: fullName,
+          candidateName: doctor.nombre,
+          cedulaDigits,
+          candidateRaw: cells.join(" "),
+        });
 
-      const clean = cols.map((x) => String(x || "").trim()).filter((x) => x.length > 0);
+        return {
+          doctor,
+          score,
+          raw: cells,
+        };
+      });
 
-      const doctor = {
-        nombres: clean[0] || "",
-        cedula: clean[1] || "",
-        decreto: clean[2] || "",
-        registro: clean[3] || "",
-      };
+      const sorted = candidates.sort((a, b) => b.score.score - a.score.score);
+      const best = sorted[0];
 
-      // Validación extra por cédula
-      if (cedulaDigits && doctor.cedula) {
-        const doctorCed = String(doctor.cedula).replace(/\D/g, "");
-        if (doctorCed && doctorCed !== cedulaDigits) {
-          return { ok: true, exists: false };
-        }
+      logDebug("Nombres parseados:", sorted.slice(0, 10).map((x) => x.doctor.nombre));
+      logDebug(
+        "Top scores:",
+        sorted.slice(0, 5).map((x) => ({ nombre: x.doctor.nombre, ...x.score }))
+      );
+
+      const threshold = 0.75;
+      if (best && best.score.score >= threshold) {
+        return {
+          ok: true,
+          exists: true,
+          doctor: best.doctor,
+          match: {
+            score: best.score.score,
+            method: best.score.method,
+            detail: best.score.detail,
+          },
+        };
       }
 
-      return { ok: true, exists: true, doctor };
+      return {
+        ok: true,
+        exists: false,
+        match: best
+          ? {
+              score: best.score.score,
+              method: best.score.method,
+              detail: best.score.detail,
+            }
+          : null,
+      };
     }
 
-    // 5) Si no hay filas, buscar textos típicos (por si la página muestra mensaje)
     const bodyText = await page.textContent("body").catch(() => "");
-    const txt = String(bodyText || "").toLowerCase();
+    const txt = normalizeText(bodyText);
 
-    // mensajes comunes (puede variar)
     if (txt.includes("no") && (txt.includes("resultado") || txt.includes("encontr"))) {
       return { ok: true, exists: false };
     }
 
-    // DEBUG: si llegamos aquí, es que no detectamos ni tabla ni mensaje.
-    // imprimimos algo para ajustar selectores.
-    const html = await page.content();
-    console.log("SNS DEBUG: sin filas y sin mensaje claro.");
-    console.log("SNS DEBUG HTML length:", html.length);
-
     return { ok: true, exists: false };
   } catch (err) {
+    logDebug("Error consultando SNS:", err?.message || err);
     return {
       ok: false,
       reason: "No se pudo consultar Exequátur en SNS (sitio caído o cambió la página).",

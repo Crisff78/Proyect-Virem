@@ -8,8 +8,9 @@ export type DatosPersonalesPaciente = {
 };
 
 export type DatosPersonalesMedico = {
-  nombres: string;
-  apellidos: string;
+  nombreCompleto: string;
+  fechanacimiento: string;
+  genero: string;
   especialidad: string;
   cedula: string;
   telefono: string;

@@ -229,20 +229,21 @@ const validarTelefonoBackend = async (
 // =========================================
 // ✅ API EXEQUÁTUR SOLO POR NOMBRE COMPLETO
 // Endpoint: POST /api/validar-exequatur
-// Body: { nombreCompleto: "..." }
+// Body: { cedula: "...", nombreCompleto: "..." }
 // =========================================
 type ValidacionExequaturOk = { ok: true; meta?: any };
 type ValidacionExequaturFail = { ok: false; reason: string };
 type ValidacionExequaturResult = ValidacionExequaturOk | ValidacionExequaturFail;
 
 const validarExequaturPorNombre = async (
+  cedula: string,
   nombreCompleto: string
 ): Promise<ValidacionExequaturResult> => {
   try {
     const res = await fetch(apiUrl("/api/validar-exequatur"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombreCompleto }),
+      body: JSON.stringify({ cedula, nombreCompleto }),
     });
 
     const data = await res.json().catch(() => null);
@@ -535,8 +536,7 @@ const RegistroMedicoScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProps>();
 
   // Campos
-  const [names, setNames] = useState("");
-  const [lastNames, setLastNames] = useState("");
+  const [nombreCompleto, setNombreCompleto] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [gender, setGender] = useState("");
   const [cedula, setCedula] = useState("");
@@ -567,8 +567,7 @@ const RegistroMedicoScreen: React.FC = () => {
   const [exequaturError, setExequaturError] = useState<string>("");
 
   const isFormComplete =
-    names.trim() !== "" &&
-    lastNames.trim() !== "" &&
+    nombreCompleto.trim() !== "" &&
     birthDate.trim() !== "" &&
     gender !== "" &&
     cedula.trim() !== "" &&
@@ -576,11 +575,11 @@ const RegistroMedicoScreen: React.FC = () => {
     especialidad.trim() !== "" &&
     !!fotoUri;
 
-  const completedFields = [names, lastNames, birthDate, gender, cedula, phone, especialidad, fotoUri].filter((x) =>
-    typeof x === "string" ? x.trim() !== "" : !!x
+  const completedFields = [nombreCompleto, birthDate, gender, cedula, phone, especialidad, fotoUri].filter(
+    (x) => (typeof x === "string" ? x.trim() !== "" : !!x)
   ).length;
 
-  const progressPercent = Math.round((completedFields / 8) * 100);
+  const progressPercent = Math.round((completedFields / 7) * 100);
 
   const especialidadesFiltradas = useMemo(() => {
     const q = espQuery.trim().toLowerCase();
@@ -703,16 +702,16 @@ const RegistroMedicoScreen: React.FC = () => {
     }
 
     // ✅ Exequátur SOLO por nombre completo
-    const nombreCompleto = `${names} ${lastNames}`.replace(/\s+/g, " ").trim();
+    const nombreCompletoTrim = nombreCompleto.replace(/\s+/g, " ").trim();
 
-    if (nombreCompleto.length < 4) {
-      setExequaturError("Debes escribir el nombre completo para validar en el SNS.");
+    if (nombreCompletoTrim.split(/\s+/).filter(Boolean).length < 2) {
+      setExequaturError("Verifica el nombre completo tal como aparece en el SNS.");
       Alert.alert("Nombre requerido", "Escribe el nombre completo tal como aparece en el Exequátur del SNS.");
       return;
     }
 
     setIsLoading(true);
-    const exq = await validarExequaturPorNombre(nombreCompleto);
+    const exq = await validarExequaturPorNombre(cedula, nombreCompletoTrim);
     setIsLoading(false);
 
     if (exq.ok === false) {
@@ -723,8 +722,7 @@ const RegistroMedicoScreen: React.FC = () => {
 
     navigation.navigate("RegistroCredenciales", {
       datosPersonales: {
-        nombres: names,
-        apellidos: lastNames,
+        nombreCompleto: nombreCompletoTrim,
         fechanacimiento: birthDate,
         genero: gender,
         especialidad,
@@ -766,19 +764,7 @@ const RegistroMedicoScreen: React.FC = () => {
             <View style={styles.progressHeader}>
               <Text style={styles.progressTitle}>Información del Médico</Text>
               <Text style={styles.progressPercent}>
-                {Math.round(
-                  ([
-                    names,
-                    lastNames,
-                    birthDate,
-                    gender,
-                    cedula,
-                    phone,
-                    especialidad,
-                    fotoUri,
-                  ].filter((x) => (typeof x === "string" ? x.trim() !== "" : !!x)).length / 8) *
-                    100
-                )}
+                {progressPercent}
                 % Completado
               </Text>
             </View>
@@ -788,19 +774,7 @@ const RegistroMedicoScreen: React.FC = () => {
                 style={[
                   styles.progressBarInner,
                   {
-                    width: `${Math.round(
-                      ([
-                        names,
-                        lastNames,
-                        birthDate,
-                        gender,
-                        cedula,
-                        phone,
-                        especialidad,
-                        fotoUri,
-                      ].filter((x) => (typeof x === "string" ? x.trim() !== "" : !!x)).length / 8) *
-                        100
-                    )}%`,
+                    width: `${progressPercent}%`,
                   } as any,
                 ]}
               />
@@ -834,26 +808,13 @@ const RegistroMedicoScreen: React.FC = () => {
             <View style={{ gap: 24 }}>
               <View style={styles.formRow}>
                 <View style={styles.inputWrapper}>
-                  <Text style={styles.inputLabel}>Nombres</Text>
+                  <Text style={styles.inputLabel}>Nombre completo</Text>
                   <TextInput
-                    style={[styles.inputField, showErrors && !names && styles.inputError]}
-                    placeholder="Ej. Juan Alberto (si tienes 2 nombres, escríbelos aquí)"
-                    value={names}
+                    style={[styles.inputField, showErrors && !nombreCompleto && styles.inputError]}
+                    placeholder="Ej. Juan Alberto Pérez"
+                    value={nombreCompleto}
                     onChangeText={(t) => {
-                      setNames(filterOnlyLetters(t));
-                      setExequaturError("");
-                    }}
-                  />
-                </View>
-
-                <View style={styles.inputWrapper}>
-                  <Text style={styles.inputLabel}>Apellidos</Text>
-                  <TextInput
-                    style={[styles.inputField, showErrors && !lastNames && styles.inputError]}
-                    placeholder="Ej. Pérez Gómez (si tienes 2 apellidos, escríbelos aquí)"
-                    value={lastNames}
-                    onChangeText={(t) => {
-                      setLastNames(filterOnlyLetters(t));
+                      setNombreCompleto(filterOnlyLetters(t));
                       setExequaturError("");
                     }}
                   />
