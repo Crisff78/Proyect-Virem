@@ -284,21 +284,18 @@ const RegistroPacienteScreen: React.FC = () => {
       return;
     }
 
-    // 1) Validar fecha real
     if (!esFechaValida(birthDate)) {
       setFechaError(true);
       Alert.alert('Fecha Inválida', 'La fecha de nacimiento no es real o es incorrecta.');
       return;
     }
 
-    // 2) Validar mayor de 18
     if (!esMayorDe18(birthDate)) {
       setFechaMayor18Error(true);
       Alert.alert('Edad no permitida', 'El paciente debe ser mayor de 18 años.');
       return;
     }
 
-    // 3) Validar cédula (solo RD)
     if (selectedCountryCode.name === 'República Dominicana') {
       setIsLoading(true);
       await new Promise((r) => setTimeout(r, 300));
@@ -312,25 +309,24 @@ const RegistroPacienteScreen: React.FC = () => {
       }
     }
 
-    // 4) API para validar teléfono (backend -> Veriphone)
     setIsLoading(true);
     const tel = await validarTelefonoBackend(selectedCountryCode.code, phone);
     setIsLoading(false);
 
-    if (!tel.ok) {
+    // ✅ FIX TS: narrowing correcto
+    if (tel.ok === false) {
       setTelefonoError(tel.reason);
       Alert.alert('Teléfono inválido', tel.reason);
       return;
     }
 
-    // 5) Enviar datos a la siguiente pantalla
     navigation.navigate('RegistroCredenciales', {
       datosPersonales: {
         nombres: names,
         apellidos: lastNames,
         fechanacimiento: birthDate,
         genero: gender,
-        cedula: cedula, // con guiones
+        cedula: cedula,
         telefono: `${selectedCountryCode.code} ${phone}`,
       },
     });
@@ -486,7 +482,11 @@ const RegistroPacienteScreen: React.FC = () => {
                 onPress={handleContinue}
                 disabled={isLoading}
               >
-                {isLoading ? <ActivityIndicator color="white" /> : <Text style={{ color: 'white', fontWeight: 'bold' }}>Guardar y Continuar</Text>}
+                {isLoading ? (
+                  <ActivityIndicator color="white" />
+                ) : (
+                  <Text style={{ color: 'white', fontWeight: 'bold' }}>Guardar y Continuar</Text>
+                )}
               </TouchableOpacity>
             </View>
           </View>
@@ -497,7 +497,14 @@ const RegistroPacienteScreen: React.FC = () => {
         <TouchableOpacity style={styles.modalOverlay} onPress={() => setShowGenderModal(false)}>
           <View style={styles.modalContent}>
             {['Hombre', 'Mujer', 'Otro'].map((g) => (
-              <TouchableOpacity key={g} style={styles.modalOption} onPress={() => { setGender(g); setShowGenderModal(false); }}>
+              <TouchableOpacity
+                key={g}
+                style={styles.modalOption}
+                onPress={() => {
+                  setGender(g);
+                  setShowGenderModal(false);
+                }}
+              >
                 <Text style={styles.modalOptionText}>{g}</Text>
               </TouchableOpacity>
             ))}
@@ -510,8 +517,19 @@ const RegistroPacienteScreen: React.FC = () => {
           <View style={styles.modalContent}>
             <ScrollView>
               {countryCodes.map((c, i) => (
-                <TouchableOpacity key={i} style={styles.modalOption} onPress={() => { setSelectedCountryCode(c); setPhone(''); setTelefonoError(''); setShowPrefixModal(false); }}>
-                  <Text style={styles.modalOptionText}>{c.code} ({c.name})</Text>
+                <TouchableOpacity
+                  key={i}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    setSelectedCountryCode(c);
+                    setPhone('');
+                    setTelefonoError('');
+                    setShowPrefixModal(false);
+                  }}
+                >
+                  <Text style={styles.modalOptionText}>
+                    {c.code} ({c.name})
+                  </Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>

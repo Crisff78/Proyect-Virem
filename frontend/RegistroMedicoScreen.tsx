@@ -25,10 +25,7 @@ import { RootStackParamList } from "./navigation/types";
 import { apiUrl } from "./config/backend";
 
 // Tipado navegación
-type NavigationProps = NativeStackNavigationProp<
-  RootStackParamList,
-  "RegistroMedico"
->;
+type NavigationProps = NativeStackNavigationProp<RootStackParamList, "RegistroMedico">;
 
 interface CountryCodeType {
   code: string;
@@ -183,6 +180,7 @@ const formatCedulaRD = (text: string) => {
 
 // =========================================
 // API para validar teléfono
+// Endpoint: POST /api/validar-telefono
 // =========================================
 type ValidacionTelefonoBackendOk = { ok: true; meta?: any };
 type ValidacionTelefonoBackendFail = { ok: false; reason: string };
@@ -197,7 +195,7 @@ const validarTelefonoBackend = async (
   try {
     const digits = phoneFormatted.replace(/\D/g, "");
 
-    const res = await fetch(apiUrl("/api/phone/validar-telefono"), {
+    const res = await fetch(apiUrl("/api/validar-telefono"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ countryCode, phone: digits }),
@@ -213,7 +211,10 @@ const validarTelefonoBackend = async (
     }
 
     if (!data.valid) {
-      return { ok: false as const, reason: "El número no es válido según Veriphone." };
+      return {
+        ok: false as const,
+        reason: "El número no es válido según Veriphone.",
+      };
     }
 
     return { ok: true as const, meta: data };
@@ -226,27 +227,22 @@ const validarTelefonoBackend = async (
 };
 
 // =========================================
-// ✅ API Exequátur (SNS) - TU ENDPOINT LOCAL
+// ✅ API EXEQUÁTUR SOLO POR NOMBRE COMPLETO
 // Endpoint: POST /api/validar-exequatur
+// Body: { nombreCompleto: "..." }
 // =========================================
 type ValidacionExequaturOk = { ok: true; meta?: any };
 type ValidacionExequaturFail = { ok: false; reason: string };
 type ValidacionExequaturResult = ValidacionExequaturOk | ValidacionExequaturFail;
 
-const validarExequaturBackend = async (args: {
-  cedula: string;
-  nombres: string;
-  apellidos: string;
-}): Promise<ValidacionExequaturResult> => {
+const validarExequaturPorNombre = async (
+  nombreCompleto: string
+): Promise<ValidacionExequaturResult> => {
   try {
     const res = await fetch(apiUrl("/api/validar-exequatur"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cedula: args.cedula, // puede ir con guiones; el backend lo limpia
-        nombres: args.nombres,
-        apellidos: args.apellidos,
-      }),
+      body: JSON.stringify({ nombreCompleto }),
     });
 
     const data = await res.json().catch(() => null);
@@ -261,7 +257,8 @@ const validarExequaturBackend = async (args: {
     if (!data.exists) {
       return {
         ok: false as const,
-        reason: "Este médico no aparece en el Exequátur del SNS. Verifica cédula y nombres.",
+        reason:
+          "Este médico no aparece en el Exequátur del SNS. Verifica el nombre completo tal como aparece en el SNS.",
       };
     }
 
@@ -339,11 +336,7 @@ const styles = StyleSheet.create({
   },
   breadcrumbLink: { color: colors.blueGray, fontSize: 14, fontWeight: "500" },
   breadcrumbSeparator: { color: colors.blueGray, fontSize: 12 },
-  breadcrumbCurrent: {
-    color: colors.navyDark,
-    fontSize: 14,
-    fontWeight: "bold",
-  },
+  breadcrumbCurrent: { color: colors.navyDark, fontSize: 14, fontWeight: "bold" },
 
   pageTitle: {
     color: colors.navyDark,
@@ -548,9 +541,7 @@ const RegistroMedicoScreen: React.FC = () => {
   const [gender, setGender] = useState("");
   const [cedula, setCedula] = useState("");
   const [phone, setPhone] = useState("");
-  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCodeType>(
-    countryCodes[0]
-  );
+  const [selectedCountryCode, setSelectedCountryCode] = useState<CountryCodeType>(countryCodes[0]);
 
   // Médico
   const [especialidad, setEspecialidad] = useState("");
@@ -573,7 +564,6 @@ const RegistroMedicoScreen: React.FC = () => {
   const [telefonoError, setTelefonoError] = useState<string>("");
   const [especialidadError, setEspecialidadError] = useState(false);
 
-  // ✅ NUEVO: error exequátur
   const [exequaturError, setExequaturError] = useState<string>("");
 
   const isFormComplete =
@@ -586,16 +576,9 @@ const RegistroMedicoScreen: React.FC = () => {
     especialidad.trim() !== "" &&
     !!fotoUri;
 
-  const completedFields = [
-    names,
-    lastNames,
-    birthDate,
-    gender,
-    cedula,
-    phone,
-    especialidad,
-    fotoUri,
-  ].filter((x) => (typeof x === "string" ? x.trim() !== "" : !!x)).length;
+  const completedFields = [names, lastNames, birthDate, gender, cedula, phone, especialidad, fotoUri].filter((x) =>
+    typeof x === "string" ? x.trim() !== "" : !!x
+  ).length;
 
   const progressPercent = Math.round((completedFields / 8) * 100);
 
@@ -606,7 +589,6 @@ const RegistroMedicoScreen: React.FC = () => {
   }, [espQuery]);
 
   const validarQueSeaPersona = async (uri: string) => {
-    // En WEB expo-face-detector no funciona confiable
     if (Platform.OS === "web") return true;
 
     try {
@@ -695,7 +677,7 @@ const RegistroMedicoScreen: React.FC = () => {
       return;
     }
 
-    // Validación cédula RD (solo si RD)
+    // Validación cédula RD (esta es SOLO local, NO Exequátur)
     if (selectedCountryCode.name === "República Dominicana") {
       setIsLoading(true);
       await new Promise((r) => setTimeout(r, 250));
@@ -720,13 +702,17 @@ const RegistroMedicoScreen: React.FC = () => {
       return;
     }
 
-    // ✅ NUEVO: Validación Exequátur (SNS)
+    // ✅ Exequátur SOLO por nombre completo
+    const nombreCompleto = `${names} ${lastNames}`.replace(/\s+/g, " ").trim();
+
+    if (nombreCompleto.length < 4) {
+      setExequaturError("Debes escribir el nombre completo para validar en el SNS.");
+      Alert.alert("Nombre requerido", "Escribe el nombre completo tal como aparece en el Exequátur del SNS.");
+      return;
+    }
+
     setIsLoading(true);
-    const exq = await validarExequaturBackend({
-      cedula,
-      nombres: names,
-      apellidos: lastNames,
-    });
+    const exq = await validarExequaturPorNombre(nombreCompleto);
     setIsLoading(false);
 
     if (exq.ok === false) {
@@ -779,11 +765,45 @@ const RegistroMedicoScreen: React.FC = () => {
           <View style={styles.formCard}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressTitle}>Información del Médico</Text>
-              <Text style={styles.progressPercent}>{progressPercent}% Completado</Text>
+              <Text style={styles.progressPercent}>
+                {Math.round(
+                  ([
+                    names,
+                    lastNames,
+                    birthDate,
+                    gender,
+                    cedula,
+                    phone,
+                    especialidad,
+                    fotoUri,
+                  ].filter((x) => (typeof x === "string" ? x.trim() !== "" : !!x)).length / 8) *
+                    100
+                )}
+                % Completado
+              </Text>
             </View>
 
             <View style={styles.progressBarOuter}>
-              <View style={[styles.progressBarInner, { width: `${progressPercent}%` } as any]} />
+              <View
+                style={[
+                  styles.progressBarInner,
+                  {
+                    width: `${Math.round(
+                      ([
+                        names,
+                        lastNames,
+                        birthDate,
+                        gender,
+                        cedula,
+                        phone,
+                        especialidad,
+                        fotoUri,
+                      ].filter((x) => (typeof x === "string" ? x.trim() !== "" : !!x)).length / 8) *
+                        100
+                    )}%`,
+                  } as any,
+                ]}
+              />
             </View>
 
             {/* FOTO */}
@@ -817,9 +837,12 @@ const RegistroMedicoScreen: React.FC = () => {
                   <Text style={styles.inputLabel}>Nombres</Text>
                   <TextInput
                     style={[styles.inputField, showErrors && !names && styles.inputError]}
-                    placeholder="Ej. Juan Alberto"
+                    placeholder="Ej. Juan Alberto (si tienes 2 nombres, escríbelos aquí)"
                     value={names}
-                    onChangeText={(t) => setNames(filterOnlyLetters(t))}
+                    onChangeText={(t) => {
+                      setNames(filterOnlyLetters(t));
+                      setExequaturError("");
+                    }}
                   />
                 </View>
 
@@ -827,9 +850,12 @@ const RegistroMedicoScreen: React.FC = () => {
                   <Text style={styles.inputLabel}>Apellidos</Text>
                   <TextInput
                     style={[styles.inputField, showErrors && !lastNames && styles.inputError]}
-                    placeholder="Ej. Pérez Gomez"
+                    placeholder="Ej. Pérez Gómez (si tienes 2 apellidos, escríbelos aquí)"
                     value={lastNames}
-                    onChangeText={(t) => setLastNames(filterOnlyLetters(t))}
+                    onChangeText={(t) => {
+                      setLastNames(filterOnlyLetters(t));
+                      setExequaturError("");
+                    }}
                   />
                 </View>
               </View>
@@ -848,7 +874,6 @@ const RegistroMedicoScreen: React.FC = () => {
                     onChangeText={(t) => {
                       setCedula(formatCedulaRD(t));
                       setCedulaError(false);
-                      setExequaturError("");
                     }}
                     maxLength={13}
                   />
