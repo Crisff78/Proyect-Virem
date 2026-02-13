@@ -239,10 +239,12 @@ const validarExequaturPorNombre = async (
   nombreCompleto: string
 ): Promise<ValidacionExequaturResult> => {
   try {
+    const nombreNormalizado = String(nombreCompleto || "").replace(/\s+/g, " ").trim();
+
     const res = await fetch(apiUrl("/api/validar-exequatur"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombreCompleto }),
+      body: JSON.stringify({ nombreCompleto: nombreNormalizado }),
     });
 
     const data = await res.json().catch(() => null);
@@ -809,7 +811,10 @@ const RegistroMedicoScreen: React.FC = () => {
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Nombre completo</Text>
                   <TextInput
-                    style={[styles.inputField, showErrors && !nombreCompleto && styles.inputError]}
+                    style={[
+                      styles.inputField,
+                      (showErrors && !nombreCompleto) || !!exequaturError ? styles.inputError : null,
+                    ]}
                     placeholder="Ej. Juan Alberto Pérez"
                     value={nombreCompleto}
                     onChangeText={(t) => {
@@ -817,6 +822,7 @@ const RegistroMedicoScreen: React.FC = () => {
                       setExequaturError("");
                     }}
                   />
+                  {!!exequaturError && <Text style={styles.errorText}>{exequaturError}</Text>}
                 </View>
               </View>
 
@@ -826,7 +832,7 @@ const RegistroMedicoScreen: React.FC = () => {
                   <TextInput
                     style={[
                       styles.inputField,
-                      ((showErrors && !cedula) || cedulaError || !!exequaturError) && styles.inputError,
+                      ((showErrors && !cedula) || cedulaError) && styles.inputError,
                     ]}
                     placeholder="XXX-XXXXXXX-X"
                     keyboardType="numeric"
@@ -838,7 +844,6 @@ const RegistroMedicoScreen: React.FC = () => {
                     maxLength={13}
                   />
                   {cedulaError && <Text style={styles.errorText}>Cédula no válida</Text>}
-                  {!!exequaturError && <Text style={styles.errorText}>{exequaturError}</Text>}
                 </View>
 
                 <View style={styles.inputWrapper}>
