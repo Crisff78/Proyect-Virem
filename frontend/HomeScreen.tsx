@@ -54,13 +54,15 @@ const HomeScreen: React.FC = () => {
 
         const profile = JSON.parse(storedProfile) as Record<string, string>;
 
-        const fullName = [
-          profile.nombres || profile.nombre || profile.firstName || profile.name,
-          profile.apellidos || profile.lastName || profile.surname,
-        ]
-          .filter(Boolean)
-          .join(' ')
-          .trim();
+        const fullName = (
+          profile.nombreCompleto ||
+          [
+            profile.nombres || profile.nombre || profile.firstName || profile.name,
+            profile.apellidos || profile.lastName || profile.surname,
+          ]
+            .filter(Boolean)
+            .join(' ')
+        ).trim();
 
         if (fullName && isMounted) {
           setPatientName(fullName);
