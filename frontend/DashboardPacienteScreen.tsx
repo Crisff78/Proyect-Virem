@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
+  Animated,
   View,
   Text,
   StyleSheet,
@@ -8,9 +10,13 @@ import {
   Image,
   TextInput,
   ActivityIndicator,
+  Easing,
 } from 'react-native';
 import type { ImageSourcePropType } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from './navigation/types';
 
 // ✅ Si usas Expo, comenta los imports de abajo y usa:
 // import { MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -136,8 +142,12 @@ const DoctorCard: React.FC<DoctorCardProps> = ({ name, spec, avatar }) => (
 
 /* ===================== PANTALLA ===================== */
 const DashboardPacienteScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [user, setUser] = useState<User | null>(null);
   const [loadingUser, setLoadingUser] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatReply, setChatReply] = useState('');
+  const chatAnim = useRef(new Animated.Value(0)).current;
 
   // ✅ Cargar usuario real desde storage (guardado al loguearse)
   useEffect(() => {
@@ -179,6 +189,44 @@ const DashboardPacienteScreen: React.FC = () => {
   // ✅ Doctores placeholder (esto no depende del usuario)
   const Doctor1: ImageSourcePropType = { uri: 'https://i.pravatar.cc/150?img=12' };
   const Doctor2: ImageSourcePropType = { uri: 'https://i.pravatar.cc/150?img=32' };
+
+  const toggleChat = () => {
+    const next = !chatOpen;
+    setChatOpen(next);
+
+    Animated.timing(chatAnim, {
+      toValue: next ? 1 : 0,
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const handleLogout = async () => {
+    await AsyncStorage.removeItem('token');
+    await AsyncStorage.removeItem(STORAGE_KEY);
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
+  const handleJoinVideoCall = () => {
+    Alert.alert(
+      'Videollamada',
+      'Conectándote a la videollamada con el Dr. Alejandro García...'
+    );
+  };
+
+  const handleSeePreparations = () => {
+    Alert.alert(
+      'Preparativos de consulta',
+      '• Ten tu documento de identidad cerca.\n• Verifica cámara y micrófono.\n• Mantén a mano tus exámenes recientes.'
+    );
+  };
+
+  const handleSendMessage = () => {
+    if (!chatReply.trim()) return;
+    Alert.alert('Mensaje enviado', 'Tu respuesta fue enviada al doctor.');
+    setChatReply('');
+  };
 
   if (loadingUser) {
     return (
@@ -259,17 +307,7 @@ const DashboardPacienteScreen: React.FC = () => {
         </View>
 
         {/* Cerrar sesión */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={async () => {
-            // ✅ al cerrar sesión borras el usuario y token
-            await AsyncStorage.removeItem('token');
-            await AsyncStorage.removeItem(STORAGE_KEY);
-
-            // aquí navegas al login (ejemplo):
-            // navigation.replace('Login');
-          }}
-        >
+        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
           <MaterialIcons name="logout" size={20} color="#fff" />
           <Text style={styles.logoutText}>Cerrar Sesión</Text>
         </TouchableOpacity>
@@ -315,12 +353,12 @@ const DashboardPacienteScreen: React.FC = () => {
             </Text>
 
             <View style={styles.bigCardActions}>
-              <TouchableOpacity style={styles.primaryBtn}>
+              <TouchableOpacity style={styles.primaryBtn} onPress={handleJoinVideoCall}>
                 <MaterialIcons name="videocam" size={18} color="#fff" />
                 <Text style={styles.primaryBtnText}>Entrar a Videollamada</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.secondaryBtn}>
+              <TouchableOpacity style={styles.secondaryBtn} onPress={handleSeePreparations}>
                 <Text style={styles.secondaryBtnText}>Ver preparativos</Text>
               </TouchableOpacity>
             </View>
@@ -376,47 +414,7 @@ const DashboardPacienteScreen: React.FC = () => {
             />
           </View>
 
-          <View style={styles.colRight}>
-            <Text style={styles.sectionTitle}>Mensajes recientes</Text>
-
-            <View style={styles.chatCard}>
-              <View style={styles.chatHeader}>
-                <Image source={Doctor1} style={styles.chatAvatar} />
-                <View>
-                  <Text style={styles.chatName}>Dr. Ricardo Ruiz</Text>
-                  <View style={styles.onlineRow}>
-                    <View style={styles.onlineDot} />
-                    <Text style={styles.onlineText}>Online</Text>
-                  </View>
-                </View>
-              </View>
-
-              <View style={styles.chatBody}>
-                <View style={styles.msgLeft}>
-                  <Text style={styles.msgLeftText}>
-                    Hola {fullName.split(' ')[0] || 'Paciente'}, ¿has podido completar los análisis?
-                  </Text>
-                </View>
-
-                <View style={styles.msgRight}>
-                  <Text style={styles.msgRightText}>
-                    Sí Doctor, se los envié por el portal esta mañana.
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.chatInputRow}>
-                <TextInput
-                  placeholder="Responder..."
-                  placeholderTextColor="#8aa7bf"
-                  style={styles.chatInput}
-                />
-                <TouchableOpacity>
-                  <MaterialIcons name="send" size={20} color={colors.primary} />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+          <View style={styles.colRight} />
         </View>
 
         <View style={styles.twoCols}>
@@ -469,6 +467,69 @@ const DashboardPacienteScreen: React.FC = () => {
           </View>
         </View>
       </ScrollView>
+
+      {chatOpen ? (
+        <Animated.View
+          style={[
+            styles.chatFloatingPanel,
+            {
+              opacity: chatAnim,
+              transform: [
+                {
+                  translateY: chatAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [16, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.chatHeader}>
+            <Image source={Doctor1} style={styles.chatAvatar} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.chatName}>Dr. Ricardo Ruiz</Text>
+              <View style={styles.onlineRow}>
+                <View style={styles.onlineDot} />
+                <Text style={styles.onlineText}>Online</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity onPress={toggleChat}>
+              <MaterialIcons name="close" size={20} color={colors.muted} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.chatBody}>
+            <View style={styles.msgLeft}>
+              <Text style={styles.msgLeftText}>
+                Hola {fullName.split(' ')[0] || 'Paciente'}, ¿has podido completar los análisis?
+              </Text>
+            </View>
+
+            <View style={styles.msgRight}>
+              <Text style={styles.msgRightText}>Sí Doctor, se los envié por el portal esta mañana.</Text>
+            </View>
+          </View>
+
+          <View style={styles.chatInputRow}>
+            <TextInput
+              placeholder="Responder..."
+              placeholderTextColor="#8aa7bf"
+              style={styles.chatInput}
+              value={chatReply}
+              onChangeText={setChatReply}
+            />
+            <TouchableOpacity onPress={handleSendMessage}>
+              <MaterialIcons name="send" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      ) : null}
+
+      <TouchableOpacity style={styles.chatFab} onPress={toggleChat}>
+        <MaterialIcons name={chatOpen ? 'close' : 'chat'} size={26} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -687,6 +748,37 @@ const styles = StyleSheet.create({
   msgRightText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   chatInputRow: { flexDirection: 'row', gap: 10, alignItems: 'center', padding: 12, borderTopWidth: 1, borderTopColor: '#eef2f7' },
   chatInput: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, color: colors.dark, fontWeight: '700' },
+  chatFloatingPanel: {
+    position: 'absolute',
+    right: 24,
+    bottom: 96,
+    width: 360,
+    maxWidth: '92%',
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: colors.dark,
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
+  chatFab: {
+    position: 'absolute',
+    right: 24,
+    bottom: 24,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: colors.dark,
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 8,
+  },
 
   listCard: { backgroundColor: '#fff', borderRadius: 22, overflow: 'hidden', marginTop: 10, shadowColor: colors.dark, shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   docRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
