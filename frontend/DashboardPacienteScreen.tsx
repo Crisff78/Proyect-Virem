@@ -11,9 +11,11 @@ import {
   TextInput,
   ActivityIndicator,
   Easing,
+  Platform,
 } from 'react-native';
 import type { ImageSourcePropType } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from './navigation/types';
@@ -30,13 +32,28 @@ const ViremLogo = require('../frontend/assets/imagenes/descarga.png');
 // ./assets/imagenes/avatar-default.png
 const DefaultAvatar = require('../frontend/assets/imagenes/avatar-default.jpg');
 
-const STORAGE_KEY = 'user'; // <-- aquí debe estar el usuario guardado al iniciar sesión
+const STORAGE_KEY = 'user';
+const LEGACY_USER_STORAGE_KEY = 'userProfile';
+
+const parseUser = (raw: string | null): User | null => {
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
 
 /* ===================== TIPOS ===================== */
 type User = {
   id?: number | string;
   nombres?: string;
   apellidos?: string;
+  nombre?: string;
+  apellido?: string;
+  firstName?: string;
+  lastName?: string;
   email?: string;
   plan?: string;        // "Premium" / "Básico"
   fotoUrl?: string;     // URL de la foto si la subió
@@ -153,9 +170,25 @@ const DashboardPacienteScreen: React.FC = () => {
   useEffect(() => {
     const loadUser = async () => {
       try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) setUser(JSON.parse(raw));
-        else setUser(null);
+        // 1) Compatibilidad con login web actual
+        if (Platform.OS === 'web') {
+          const localStorageUser = parseUser(localStorage.getItem(LEGACY_USER_STORAGE_KEY));
+          if (localStorageUser) {
+            setUser(localStorageUser);
+            return;
+          }
+        }
+
+        // 2) Compatibilidad con login mobile actual
+        const secureStoreUser = parseUser(await SecureStore.getItemAsync(LEGACY_USER_STORAGE_KEY));
+        if (secureStoreUser) {
+          setUser(secureStoreUser);
+          return;
+        }
+
+        // 3) Compatibilidad con almacenamiento legacy en AsyncStorage
+        const asyncUser = parseUser(await AsyncStorage.getItem(STORAGE_KEY));
+        setUser(asyncUser);
       } catch {
         setUser(null);
       } finally {
@@ -167,8 +200,8 @@ const DashboardPacienteScreen: React.FC = () => {
   }, []);
 
   const fullName = useMemo(() => {
-    const nombres = (user?.nombres || '').trim();
-    const apellidos = (user?.apellidos || '').trim();
+    const nombres = (user?.nombres || user?.nombre || user?.firstName || '').trim();
+    const apellidos = (user?.apellidos || user?.apellido || user?.lastName || '').trim();
     const name = `${nombres} ${apellidos}`.trim();
     return name || 'Paciente';
   }, [user]);
