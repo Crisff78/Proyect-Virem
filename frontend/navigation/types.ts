@@ -39,4 +39,5 @@ export type RootStackParamList = {
 
   // ✅ NUEVA PANTALLA
   DashboardPaciente: undefined;
+  DashboardMedico: undefined;
 };

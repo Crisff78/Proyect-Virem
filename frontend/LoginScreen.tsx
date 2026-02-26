@@ -118,11 +118,12 @@ const LoginScreen: React.FC = () => {
 
       // ✅ Guardar sesión sin bloquear navegación
       await saveSession(token, userProfile);
+      const rolid = Number(userProfile?.rolid);
+      const targetRoute: keyof RootStackParamList = rolid === 2 ? 'DashboardMedico' : 'DashboardPaciente';
 
-      console.log('✅ Login OK -> DashboardPaciente');
+      console.log(`Login OK -> ${targetRoute} (rolid=${rolid || 'N/A'})`);
 
-      // ✅ Navega directo (sin depender de Alert)
-      navigation.reset({ index: 0, routes: [{ name: 'DashboardPaciente' as any }] });
+      navigation.reset({ index: 0, routes: [{ name: targetRoute }] });
 
       // ✅ opcional: mostrar mensaje DESPUÉS (no bloquea navegación)
       setTimeout(() => {
@@ -274,3 +275,5 @@ const styles = StyleSheet.create({
   registerText: { fontSize: 14, color: COLORS.textSecondary },
   linkTextBold: { color: COLORS.link, fontSize: 14, fontWeight: 'bold' },
 });
+
+

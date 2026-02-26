@@ -13,6 +13,7 @@ import SeleccionPerfil from "./SeleccionPerfil";
 import VerificarIdentidadScreen from "./VerificarIdentidadScreen";
 
 import DashboardPacienteScreen from "./DashboardPacienteScreen";
+import DashboardMedico from "./DashboardMedico";
 
 import { RootStackParamList } from "./navigation/types";
 
@@ -47,9 +48,12 @@ const App: React.FC = () => {
 
         {/* ✅ Dashboard Paciente */}
         <Stack.Screen name="DashboardPaciente" component={DashboardPacienteScreen} />
+        <Stack.Screen name="DashboardMedico" component={DashboardMedico} />
       </Stack.Navigator>
     </NavigationContainer>
   );
 };
 
 export default App;
+
+
