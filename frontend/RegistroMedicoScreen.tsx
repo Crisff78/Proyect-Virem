@@ -725,7 +725,7 @@ const RegistroMedicoScreen: React.FC = () => {
       return;
     }
 
-    navigation.navigate("RegistroCredenciales", {
+    navigation.navigate("RegistroCredencialesMedico", {
       datosPersonales: {
         nombreCompleto: nombreCompletoTrim,
         fechanacimiento: birthDate,

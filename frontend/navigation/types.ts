@@ -31,6 +31,10 @@ export type RootStackParamList = {
     datosPersonales: DatosPersonalesPaciente | DatosPersonalesMedico;
   };
 
+  RegistroCredencialesMedico: {
+    datosPersonales: DatosPersonalesMedico;
+  };
+
   Home: undefined;
 
   // ✅ NUEVA PANTALLA

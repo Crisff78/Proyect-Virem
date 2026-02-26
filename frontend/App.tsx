@@ -6,6 +6,7 @@ import EstablecerNuevaContrasenaScreen from "./EstablecerNuevaContrasenaScreen";
 import LoginScreen from "./LoginScreen";
 import RecuperarContrasenaScreen from "./RecuperarContrasenaScreen";
 import RegistroCredencialesScreen from "./RegistroCredencialesScreen";
+import RegistroCredencialesMedicoScreen from "./RegistroCredencialesMedicoScreen";
 import RegistroMedicoScreen from "./RegistroMedicoScreen";
 import RegistroPacienteScreen from "./RegistroPacienteScreen";
 import SeleccionPerfil from "./SeleccionPerfil";
@@ -35,6 +36,7 @@ const App: React.FC = () => {
         <Stack.Screen name="RegistroMedico" component={RegistroMedicoScreen} />
 
         <Stack.Screen name="RegistroCredenciales" component={RegistroCredencialesScreen} />
+        <Stack.Screen name="RegistroCredencialesMedico" component={RegistroCredencialesMedicoScreen} />
 
         <Stack.Screen name="RecuperarContrasena" component={RecuperarContrasenaScreen} />
         <Stack.Screen name="VerificarIdentidad" component={VerificarIdentidadScreen} />
